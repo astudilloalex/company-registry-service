@@ -18,10 +18,10 @@ Las casillas representan implementación futura; ninguna se completa durante la 
 
 ## 3. Modelo y normalización independientes
 
-- [ ] 3.1 Definir enums de Company/Site/tipos y modelos mínimos de identidad/versión con invariantes, preservando agregados Company y Site separados; verificar unitariamente valores válidos, versión no negativa y estados terminales/políticas básicas documentadas sin workflows de HU.
-- [ ] 3.2 Implementar política central de texto con trim exterior y `Locale.ROOT`; verificar acentos, espacios internos, locale turco, idempotencia, nulos opcionales, blancos y expansión de longitud antes de validar.
-- [ ] 3.3 Implementar reglas especializadas de email/teléfono y exclusiones de opacos; verificar preservación de email local, URL, UUID, claves/correlación y salida telefónica E.164, rechazando entrada ambigua sin país inventado.
-- [ ] 3.4 Documentar la matriz campo→normalización→validación en `docs/architecture/text-normalization.md`; verificar correspondencia con pruebas unitarias y con los CHECK de V1, incluyendo compatibilidad Java/PostgreSQL para texto acentuado.
+- [x] 3.1 Definir enums de Company/Site/tipos y modelos mínimos de identidad/versión con invariantes, preservando agregados Company y Site separados; verificar unitariamente valores válidos, versión no negativa y estados terminales/políticas básicas documentadas sin workflows de HU.
+- [x] 3.2 Implementar política central de texto con trim exterior y `Locale.ROOT`; verificar acentos, espacios internos, locale turco, idempotencia, nulos opcionales, blancos y expansión de longitud antes de validar.
+- [x] 3.3 Implementar reglas especializadas de email/teléfono y exclusiones de opacos; verificar preservación de email local, URL, UUID, claves/correlación y salida telefónica E.164, rechazando entrada ambigua sin país inventado.
+- [x] 3.4 Documentar la matriz campo→normalización→validación en `docs/architecture/text-normalization.md`; verificar correspondencia con pruebas unitarias y con los CHECK de V1, incluyendo compatibilidad Java/PostgreSQL para texto acentuado.
 
 ## 4. Configuración PostgreSQL y Flyway
 

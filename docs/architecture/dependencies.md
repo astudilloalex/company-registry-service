@@ -1,5 +1,7 @@
 # Dependency baseline
 
+Telephone validation uses `com.googlecode.libphonenumber:libphonenumber:9.0.41` (Maven Central) as a pure numbering-plan computation library, not an I/O/framework adapter. Domain's architecture rule explicitly allows only this additional library package. Its numbering metadata must be included and exercised during native verification; JVM policy tests alone do not establish native support.
+
 - Java toolchain and compiler release: 25.
 - Gradle wrapper: 9.7.0 (existing distribution and checksum preserved).
 - Quarkus plugin and enforced platform BOM: 3.40.1.

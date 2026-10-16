@@ -33,7 +33,12 @@ dependencies {
     implementation("io.quarkus:quarkus-smallrye-context-propagation")
     implementation("io.quarkus:quarkus-smallrye-health")
     implementation("io.quarkus:quarkus-messaging")
+    // Blocking access is reserved exclusively for Flyway startup migrations.
+    implementation("io.quarkus:quarkus-flyway")
+    implementation("io.quarkus:quarkus-jdbc-postgresql")
+    implementation("org.flywaydb:flyway-database-postgresql")
     implementation("com.alexastudillo.libraries:api-response-quarkus-errors:$apiResponseVersion")
+    implementation("com.googlecode.libphonenumber:libphonenumber:9.0.41")
     testImplementation("io.quarkus:quarkus-junit")
     testImplementation("io.quarkus:quarkus-junit-mockito")
     testImplementation("io.quarkus:quarkus-test-vertx")
@@ -43,6 +48,7 @@ dependencies {
     testImplementation("io.swagger.parser.v3:swagger-parser:2.1.47")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    testRuntimeOnly("org.postgresql:postgresql")
 }
 
 group = "com.alexastudillo"
