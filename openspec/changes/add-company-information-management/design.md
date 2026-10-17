@@ -39,7 +39,7 @@ El DTO PATCH tendrá los campos operacionales/auditoría de Company con los mism
 
 Orden de evaluación:
 
-1. Validar headers de contexto, UUID del path, shape JSON, campos/tipos admitidos, un solo If-Match y clave opcional. If-Match es obligatorio también para replay. El lector conserva texto original; no aplica una política de normalización futura antes de decidir qué política histórica corresponde.
+1. Validar headers de contexto, UUID del path, shape JSON, campos/tipos admitidos, un solo If-Match y clave opcional. If-Match es obligatorio también para replay. La gramática decimal estricta se aplica al valor extraído por HTTP; el OWS exterior de RFC 9112 §5.1 es sintaxis de transporte y no forma parte del valor. Espacios internos y headers repetidos siguen siendo inválidos. El lector conserva texto original; no aplica una política de normalización futura antes de decidir qué política histórica corresponde.
 2. Si hay clave, buscar `(tenant, company.update.v1, key)` en una sesión local. Si existe, verificar huella con su procedencia y decodificar el resultado sin leer Company actual.
 3. Sin aceptación, entrar a la transacción, resolver Company propia de forma protegida y volver a comprobar el completado después de adquirir la protección. Releer la aceptación antes de declarar ausencia/versión/estado actuales evita que un competidor ya confirmado reciba 412 en lugar de replay.
 4. Si continúa sin aceptación: ausencia da 404; después comparar versión; después comprobar estado editable; después normalizar/validar con política vigente y comparar los cuatro campos.

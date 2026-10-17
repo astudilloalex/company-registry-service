@@ -24,14 +24,17 @@ public class CompanyResource {
     private final RequestOperationContext context;
     private final RegisterCompany registration;
     private final ReadCompanies reads;
+    private final com.alexastudillo.companyregistry.application.company.UpdateCompany updates;
 
     @Inject
     public CompanyResource(ResponseManager responses, RequestOperationContext context,
-            RegisterCompany registration, ReadCompanies reads) {
+            RegisterCompany registration, ReadCompanies reads,
+            com.alexastudillo.companyregistry.application.company.UpdateCompany updates) {
         this.responses = responses;
         this.context = context;
         this.registration = registration;
         this.reads = reads;
+        this.updates = updates;
     }
 
     @GET
@@ -90,4 +93,31 @@ public class CompanyResource {
         }).onFailure().transform(ApiFailures::translate).map(CompanyResponse::from)
                 .map(data -> responses.customHttp(CompanyResponseCode.CREATED, data));
     }
+
+    @PATCH
+    @Path("/{companyId}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Uni<RestResponse<ApiResponse<CompanyOperationalResponse>>> update(@PathParam("companyId") String id,
+            @Context HttpHeaders headers, @Valid @NotNull(message = "body-required") UpdateCompanyRequest request) {
+        return Uni.createFrom().deferred(() -> {
+            var business = context.require();
+            var companyId = uuid(id);
+            var versions = headers.getRequestHeader("If-Match");
+            if (versions == null || versions.size() != 1)
+                throw new IllegalArgumentException("if-match-invalid");
+            var expected = com.alexastudillo.companyregistry.api.header.ExpectedVersionParser
+                    .parse(versions.getFirst());
+            var keys = headers.getRequestHeader("Idempotency-Key");
+            String key = null;
+            if (keys != null && !keys.isEmpty()) {
+                if (keys.size() != 1)
+                    throw new IllegalArgumentException("idempotency-key-invalid");
+                key = OpaqueValue.required(keys.getFirst(), 128);
+            }
+            return updates.execute(new com.alexastudillo.companyregistry.application.company.CompanyUpdate.Command(
+                    business, companyId, expected.value(), key, request.patch()));
+        }).onFailure().transform(ApiFailures::translate).map(CompanyOperationalResponse::from)
+                .map(responses::successHttp);
+    }
+
 }

@@ -69,3 +69,35 @@ projection, masked identifiers, boolean/version types, ISO Instant/LocalDate,
 opaque URLs/actors and explicit internal nulls. It remains separate from HTTP
 null omission. No legal columns or mirror tables are introduced. V2 preserves
 V1 and its checksum, existing snapshots and composite ownership references.
+
+## HU02 completion shape (V3)
+
+V3 adds `ck_company_idempotency_update_metadata` to the existing completion table.
+For `company.update.v1` it requires fingerprint provenance, original expected
+version >= 0, result status 200 and null Site. Existing hash, JSON object,
+positive snapshot version and tenant-qualified ownership constraints still apply.
+The schema retains six application tables and the separate runtime DML/migration
+roles. V1/V2 migrations and HU01 enriched snapshots are preserved.
+Incompatible historical HU02 rows stop the migration with a controlled diagnostic;
+no provenance is inferred, no snapshot is reconstructed and no acceptance is
+removed. Both effective changes and durable no-ops must satisfy V3. During
+application rollback retain V3, accepted data and historical keys; restore a
+compatible application or suspend the affected routes.
+
+HU02 `CompanyRepository.findForUpdate` resolves tenant and Company ID with
+PESSIMISTIC_WRITE (PostgreSQL FOR UPDATE) inside AtomicOperation. The protected
+point applies to no-op too; no-op issues no Company UPDATE. `update` carries the
+original expected version and changes only code/name/description/URL, update
+audit and version+1 using a single bulk HQL statement with tenant/ID/version
+predicates. Loaded entities remain unmodified, so @Version adds no extra flush.
+Response values come from that single write; accepted timestamps are microseconds.
+Site state and creation audit/identity/status are preserved. Missing/stale update
+predicates produce neutral STALE_VERSION. Known code/completion uniqueness and
+transient deadlock/serialization failures retain distinct recovery semantics.
+
+UpdateCompany shares one DatabaseBudget across lookup, row wait, writes, cleanup
+and recovery. Transaction-local statement_timeout/lock_timeout use remaining time;
+failed session rollback/closure precedes recovery in a new session. No parallel
+operations share a session, no manual background subscription performs writes and
+no unkeyed uncertain command is automatically reexecuted. `occupied` is never
+used by HU02: own Party cannot prove either code conflict or accepted outcome.

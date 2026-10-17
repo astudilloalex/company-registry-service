@@ -26,6 +26,15 @@ public final class OpenApiAssertions {
         assertEquals(expected.getComponents().getHeaders(), actual.getComponents().getHeaders());
         assertEquals(expected.getComponents().getExamples(), actual.getComponents().getExamples());
         assertEquals(expected.getComponents().getResponses(), actual.getComponents().getResponses());
+        var update = actual.getPaths().get("/v1/companies/{companyId}").getPatch();
+        assertNotNull(update); assertNotNull(update.getResponses().get("200"));
+        assertNotNull(update.getResponses().get("412"));
+        assertTrue(actual.getComponents().getParameters().get("IdempotencyKey").getRequired());
+        assertFalse(actual.getComponents().getParameters().get("UpdateIdempotencyKey").getRequired());
+        assertTrue(actual.getComponents().getParameters().get("ExpectedVersion").getRequired());
+        assertEquals(Set.of("code","operatingName","description","logoUrl"), actual.getComponents().getSchemas().get("UpdateCompanyRequest").getProperties().keySet());
+        assertFalse(actual.getComponents().getSchemas().get("CompanyOperationalResponse").getProperties().containsKey("party"));
+        assertTrue(actual.getComponents().getSchemas().get("CompanyResponse").getRequired().contains("party"));
         var json = new ObjectMapper();
         for (var example : expected.getComponents().getExamples().values()) {
             JsonNode value = json.valueToTree(example.getValue());

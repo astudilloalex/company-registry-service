@@ -145,11 +145,11 @@ Table company_idempotency_records {
   operation varchar(64) [not null]
   idempotency_key varchar(128) [not null]
   request_hash char(64) [not null, note: 'Lowercase hexadecimal HMAC fingerprint.']
-  fingerprint_version smallint [note: 'V2: positive policy version; required for company.create.v1; historical technical namespaces may omit both metadata fields.']
+  fingerprint_version smallint [note: 'V2/V3: positive policy version; required for company.create.v1 and company.update.v1; historical technical namespaces may omit both metadata fields.']
   fingerprint_key_id varchar(64) [note: 'V2: external key identity; ASCII letters/digits/underscore/hyphen; required together with fingerprint_version. Never secret material.']
   company_id uuid [not null]
   site_id uuid
-  expected_aggregate_version bigint
+  expected_aggregate_version bigint [note: 'V3: required nonnegative original precondition for company.update.v1; null for company.create.v1.']
   response_http_status smallint [not null]
   result_snapshot_schema_version smallint [not null, default: 1]
   result_snapshot jsonb [not null]
@@ -159,7 +159,7 @@ Table company_idempotency_records {
     (tenant_id, operation, idempotency_key) [pk, name: 'pk_company_idempotency_records']
     (tenant_id, company_id, site_id) [name: 'ix_company_idempotency_owner']
   }
-  Note: 'Nonblank operation/key/actor; hash ^[0-9a-f]{64}$; expected version NULL or >=0; HTTP 200..299; snapshot version >0 and JSON object. Nullable site_id allows Company-only completion (default FK MATCH SIMPLE). Snapshot is original response, not current aggregate state.'
+  Note: 'Nonblank operation/key/actor; hash ^[0-9a-f]{64}$; expected version NULL or >=0; HTTP 200..299; snapshot version >0 and JSON object. Nullable site_id allows Company-only completion (default FK MATCH SIMPLE). V3 ck_company_idempotency_update_metadata requires update provenance, nonnegative expected version, HTTP 200 and null Site. Creation retains HTTP 201 and null Site/precondition. Snapshot is original response, not current aggregate state.'
 }
 
 Table company_outbox_events {

@@ -1,7 +1,9 @@
 # Planned business operations and shared conventions
 
-The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01 operations:
-`POST /v1/companies`, `GET /v1/companies/{companyId}` and `GET /v1/companies`.
+The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01/HU02 operations:
+`POST /v1/companies`, `GET /v1/companies/{companyId}`, `GET /v1/companies` and
+`PATCH /v1/companies/{companyId}`. See [HU02 contract](company-information-management.md)
+for runnable modification/cleaning and replay rules.
 The [HU01 acceptance record](../operations/hu01-acceptance-review.md) records
 executed JVM, native and image verification; contract publication alone is not evidence. All require exactly one
 Tenant-Id and Process-Id as lowercase canonical UUIDs, plus an exact User-Id.
@@ -10,7 +12,7 @@ The inventory links other planned behavior to the actual issue titles:
 | HU / issue | Planned behavior | Mutation conventions |
 | --- | --- | --- |
 | [HU01 / #3](https://github.com/astudilloalex/company-registry-service/issues/3) | Company registration and retrieval/listing | Registration requires Idempotency-Key; initial Company version 0. Reads require no mutation headers. |
-| [HU02 / #4](https://github.com/astudilloalex/company-registry-service/issues/4) | Company information management | Expected Company version in If-Match. |
+| [HU02 / #4](https://github.com/astudilloalex/company-registry-service/issues/4) | Company information management | PATCH operational fields; mandatory decimal If-Match, optional durable key, local 200 without Party. |
 | [HU03 / #5](https://github.com/astudilloalex/company-registry-service/issues/5) | Company lifecycle management | Expected Company version; activation preconditions under Company→Site lock order. |
 | [HU04 / #6](https://github.com/astudilloalex/company-registry-service/issues/6) | Site registration and retrieval/listing | Site starts at version 0; operation-specific idempotency applicability. |
 | [HU05 / #7](https://github.com/astudilloalex/company-registry-service/issues/7) | Site lifecycle management | Expected Site version; CLOSED is terminal. |
@@ -36,7 +38,8 @@ atomically. Registration/replay orchestration belongs to the owning HU.
 ## Expected version
 
 The Party-compatible internal `If-Match` is decimal `0|[1-9][0-9]*` in signed
-int64, not an HTTP entity-tag: no quotes, wildcard, sign or leading zeros. Missing
+int64, not an HTTP entity-tag: no quotes, wildcard, sign or leading zeros. Validation applies to the extracted HTTP field value; outer protocol OWS is
+excluded according to RFC 9112 section 5.1. Internal whitespace remains invalid. Missing
 or invalid input is 400, stale version is 412. Company uses Company.version;
 Site/Address/Contact use Site.version. Actual changes increment once; replay and
 no-op do not. Company and Site versions are not coupled, and neither is the

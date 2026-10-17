@@ -102,7 +102,7 @@ class PackagedRestartIT {
         assertEquals("7", scalar(connection,
                 "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON t.typnamespace=n.oid WHERE n.nspname='public' AND t.typtype='e'"));
         var before = history(connection);
-        assertEquals(2, before.size());
+        assertEquals(3, before.size());
         assertEquals("company_registry_migration", scalar(connection,
                 "SELECT tableowner FROM pg_tables WHERE schemaname='public' AND tablename='companies'"));
         var marker = UUID.fromString(scalar(connection,

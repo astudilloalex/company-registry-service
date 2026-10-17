@@ -61,11 +61,16 @@ Una nueva operación SHALL resolver y modificar Company exclusivamente dentro de
 - **AND** las versiones y datos de Site, direcciones y contactos permanecen intactos
 
 ### Requirement: Precondición obligatoria de versión Company
-Cada intento SHALL incluir exactamente un If-Match decimal canónico no negativo dentro de int64, sin comillas, signos, comodines, espacios ni ceros iniciales. Ausencia, repetición o valor inválido SHALL devolver 400. Sin replay previo, una versión distinta de la actual SHALL devolver 412 `aggregate-version-mismatch`, también para un body que sería no-op.
+Cada intento SHALL incluir un único If-Match cuyo valor extraído por HTTP sea un decimal canónico no negativo int64, sin comillas, signos, comodines, espacios internos ni ceros iniciales. OWS exterior se excluye según RFC 9112 §5.1. Ausencia, repetición o valor inválido SHALL devolver 400. Sin replay previo, una versión distinta de la actual SHALL devolver 412 `aggregate-version-mismatch`, también para no-op.
 
 #### Scenario: Precondición inválida
 - **WHEN** falta If-Match, se repite o contiene `"0"`, `*`, `01`, `-1` o un entero fuera de int64
 - **THEN** responde 400 antes de aceptar o reproducir una operación
+
+#### Scenario: Whitespace exterior del protocolo HTTP
+- **WHEN** la línea HTTP contiene `If-Match:  0 `
+- **THEN** el parser entrega el valor `0` y se evalúa como la misma precondición decimal
+- **AND** valores con espacios internos como `0 1`, headers repetidos y otras formas no canónicas siguen devolviendo 400
 
 #### Scenario: Versión obsoleta con campos equivalentes
 - **WHEN** no hay aceptación previa coincidente y If-Match es obsoleto aunque el body sea `{}` o igual a los datos actuales

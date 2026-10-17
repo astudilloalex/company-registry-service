@@ -1,0 +1,21 @@
+{
+  "eventId": "0199e000-0000-7000-8000-000000000005",
+  "tenantId": "018f1234-5678-7000-8000-000000000001",
+  "aggregateType": "COMPANY",
+  "aggregateId": "0199e000-0000-7000-8000-000000000001",
+  "aggregateVersion": 1,
+  "eventType": "company.updated.v1",
+  "eventSchemaVersion": 1,
+  "occurredAt": "2026-10-17T14:30:00.123456Z",
+  "correlationId": "018f1234-5678-7000-8000-000000000002",
+  "causationId": null,
+  "payload": {
+    "companyId": "0199e000-0000-7000-8000-000000000001",
+    "partyId": "018f1234-5678-7000-8000-000000000004",
+    "code": "ACME",
+    "operatingName": "COMPAÑÍA ÁGIL",
+    "status": "DRAFT",
+    "updatedAt": "2026-10-17T14:30:00.123456Z",
+    "updatedBy": "Actor-aB"
+  }
+}
