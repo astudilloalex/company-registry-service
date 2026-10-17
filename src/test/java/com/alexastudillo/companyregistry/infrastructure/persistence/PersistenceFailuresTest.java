@@ -48,6 +48,10 @@ class PersistenceFailuresTest {
     }
 
     @Test void translatesSqlFailuresBySqlState() {
+        for (var state : new String[] {"40P01", "40001"}) {
+            assertEquals(PersistenceFailure.Kind.UNAVAILABLE, PersistenceFailures.translate(
+                    new org.hibernate.JDBCException("transient abort", new java.sql.SQLException("abort", state))).kind());
+        }
         var lockTimeout = new org.hibernate.JDBCException("timeout", new java.sql.SQLException("lock timeout", "55P03"));
         assertEquals(PersistenceFailure.Kind.UNAVAILABLE, PersistenceFailures.translate(lockTimeout).kind());
 

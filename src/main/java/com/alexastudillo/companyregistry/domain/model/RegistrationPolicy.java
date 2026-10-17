@@ -29,7 +29,7 @@ public final class RegistrationPolicy {
                 && ("DRAFT".equals(state) || "ACTIVE".equals(state) || "INACTIVE".equals(state));
     }
 
-    private static String logo(String value) {
+    static String logo(String value) {
         if (value == null)
             return null;
         OpaqueValue.required(value, 1000);

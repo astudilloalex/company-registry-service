@@ -14,7 +14,7 @@ class ExpectedVersionParserTest {
 
     @Test
     void rejectsEntityTagsWildcardsNonCanonicalAndOverflowValues() {
-        for (String value : new String[] {"\"1\"", "*", "01", "-1", "+1", " 1", "", "9223372036854775808"}) {
+        for (String value : new String[] {"\"1\"", "*", "01", "-1", "+1", " 1", "1 ", "0 1", "", "9223372036854775808"}) {
             assertThrows(IllegalArgumentException.class, () -> ExpectedVersionParser.parse(value), value);
         }
         assertThrows(IllegalArgumentException.class, () -> ExpectedVersionParser.parse(null));
