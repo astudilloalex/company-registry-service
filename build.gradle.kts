@@ -58,6 +58,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation("org.postgresql:postgresql")
     testImplementation("org.awaitility:awaitility")
+    testImplementation("com.networknt:json-schema-validator:2.0.1")
 }
 
 group = "com.alexastudillo"
@@ -104,6 +105,7 @@ tasks.named<Test>("testNative") {
 }
 
 tasks.processResources {
+    from("docs/contracts/events") { into("META-INF/contracts/events") }
     from("docs/contracts/company-registry.openapi.yaml") {
         into("META-INF")
         rename { "openapi.yaml" }
@@ -119,6 +121,7 @@ tasks.register("verifyProductionIsolation") {
         val jars = fileTree(layout.buildDirectory.dir("quarkus-app/app")) { include("*.jar") }.files
         check(jars.isNotEmpty()) { "Packaged application JAR is missing" }
         var contractFound = false
+        var eventContractFound = false
         jars.forEach { jar ->
             JarFile(jar).use { archive ->
                 archive.entries().asSequence().forEach { entry ->
@@ -126,10 +129,12 @@ tasks.register("verifyProductionIsolation") {
                         "Verification fixture included in production: ${entry.name}"
                     }
                     if (entry.name == "META-INF/openapi.yaml") contractFound = true
+                    if (entry.name == "META-INF/contracts/events/company.created.v1.schema.json") eventContractFound = true
                 }
             }
         }
         check(contractFound) { "Packaged contract is missing" }
+        check(eventContractFound) { "Packaged creation event contract is missing" }
     }
 }
 

@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://company-registry.internal/contracts/events/company.created.v1.schema.json",
+  "title": "company.created.v1",
+  "description": "Immutable accepted fact. Producer additionally enforces payload.companyId=aggregateId, payload.createdAt=occurredAt and eventId distinct from aggregateId. At least once future delivery, no global order guarantee.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "tenantId",
+    "aggregateType",
+    "aggregateId",
+    "aggregateVersion",
+    "eventType",
+    "eventSchemaVersion",
+    "occurredAt",
+    "correlationId",
+    "causationId",
+    "payload"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "tenantId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "aggregateType": {
+      "const": "COMPANY"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "aggregateVersion": {
+      "type": "integer",
+      "const": 0
+    },
+    "eventType": {
+      "const": "company.created.v1"
+    },
+    "eventSchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "causationId": {
+      "type": "null"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "companyId",
+        "partyId",
+        "code",
+        "operatingName",
+        "status",
+        "createdAt",
+        "createdBy"
+      ],
+      "properties": {
+        "companyId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "partyId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "operatingName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "status": {
+          "const": "DRAFT"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "createdBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    }
+  }
+}

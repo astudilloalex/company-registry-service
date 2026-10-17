@@ -283,3 +283,16 @@ src/main/resources/db/migration/V1__create_company_registry_schema.sql` is empty
 and no V2 or repair was introduced. There is no separate upgrade migration to test;
 the repeated-start/history test covers the existing V1 installation. Native
 execution and operational reactive mappers remain tracked in later tasks.
+
+## V2 fingerprint provenance
+
+`ck_company_idempotency_fingerprint_metadata` requires either both metadata fields
+null (historical technical namespaces), or a positive smallint fingerprint version
+and a key ID of 1–64 ASCII letters/digits/underscore/hyphen.
+`ck_company_idempotency_creation_metadata` additionally requires metadata for
+`company.create.v1`, HTTP 201 and null site/expected-version. V2 fails its preflight
+if any existing HU01 completion has unknown provenance; it never assigns the
+active key to an old hash. `FingerprintMetadataIntegrityTest` covers a real V1
+schema with technical snapshots, preflight rejection, upgrade and clean install;
+`TechnicalMappingTest` covers metadata and enriched JSONB via reactive mappings.
+V1 remains unchanged, checksum -272976494, with six application tables.
