@@ -17,7 +17,7 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 class PackagedVerificationIT {
     private RequestSpecification request() {
         return given().header("Tenant-Id", UUID.randomUUID().toString()).header("User-Id", "Actor-aB")
-                .header("Process-Id", UUID.randomUUID().toString().toUpperCase(Locale.ROOT));
+                .header("Process-Id", UUID.randomUUID().toString());
     }
     @Test void sixMappingsCommitAndRollbackWithinTheExternalProcess() {
         for (boolean rollback : new boolean[]{false, true}) {
@@ -30,7 +30,7 @@ class PackagedVerificationIT {
         }
     }
     @Test void strictInputHeadersAndSharedFrameworkErrors() {
-        var process = UUID.randomUUID().toString().toUpperCase(Locale.ROOT);
+        var process = UUID.randomUUID().toString();
         given().header("Process-Id", process).get("/v1/_verification/success").then().statusCode(400)
                 .header("Process-Id", equalTo(process)).body("status", equalTo(400)).body("code", equalTo("tenant-id-invalid"));
         for (var header : List.of("Process-Id", "Tenant-Id", "User-Id")) {
@@ -62,7 +62,7 @@ class PackagedVerificationIT {
         try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             var tasks = new ArrayList<java.util.concurrent.Future<?>>();
             for (int i = 0; i < 12; i++) {
-                var process = UUID.randomUUID().toString().toUpperCase(Locale.ROOT);
+                var process = UUID.randomUUID().toString();
                 tasks.add(executor.submit(() -> given().header("Tenant-Id", UUID.randomUUID().toString()).header("User-Id", "Actor-aB")
                         .header("Process-Id", process).get("/v1/_verification/context").then().statusCode(200)
                         .header("Process-Id", equalTo(process)).body("data.value", equalTo(process))));
@@ -78,7 +78,7 @@ class PackagedVerificationIT {
         stub.reply(partyPath, 200, "{\"status\":200,\"code\":\"successful\",\"data\":{\"partyId\":\"" + party + "\",\"type\":\"LEGAL_ENTITY\",\"recordStatus\":\"ACTIVE\",\"private\":\"ignored\"}}");
         stub.reply(countryPath, 200, "{\"status\":200,\"code\":\"successful\",\"data\":{\"id\":\"" + country + "\",\"alpha2Code\":\"EC\",\"status\":\"ACTIVE\"}}");
         stub.reply(divisionPath, 200, "{\"status\":200,\"code\":\"successful\",\"data\":{\"id\":\"" + division + "\",\"countryId\":\"" + country + "\",\"canonicalCode\":\"EC-P\",\"status\":\"ACTIVE\"}}");
-        var process = UUID.randomUUID().toString().toUpperCase(Locale.ROOT); var tenant = UUID.randomUUID().toString();
+        var process = UUID.randomUUID().toString(); var tenant = UUID.randomUUID().toString();
         given().header("Tenant-Id", tenant).header("User-Id", "Actor-aB").header("Process-Id", process)
                 .get("/v1/_verification/references/party/" + party).then().statusCode(200).body("data.id", equalTo(party.toString())).body("data.active", equalTo(true));
         request().get("/v1/_verification/references/country/EC").then().statusCode(200).body("data.id", equalTo(country.toString()));

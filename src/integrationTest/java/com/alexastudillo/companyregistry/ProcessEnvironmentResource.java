@@ -17,7 +17,11 @@ public class ProcessEnvironmentResource extends PostgresResource {
         values.put("quarkus.rest-client.geographic-reference.url", stub.url());
         values.put("quarkus.rest-client.party-registry.read-timeout", "300");
         values.put("quarkus.rest-client.geographic-reference.read-timeout", "300");
-        values.put("company-registry.outbox.mode", "disabled");
+        values.put("company-registry.outbox.mode", "stored-only");
+        values.put("company-registry.registration.wait-budget", "5s");
+        values.put("company-registry.idempotency.active-key-id", "process-k1");
+        values.put("company-registry.idempotency.keys.process-k1", java.util.Base64.getEncoder().encodeToString(new byte[32]));
+        values.put("company-registry.idempotency.keys.process-k2", java.util.Base64.getEncoder().encodeToString("independent-process-key-material2".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         settings = Map.copyOf(values);
         return values;
     }

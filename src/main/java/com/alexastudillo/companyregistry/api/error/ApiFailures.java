@@ -7,6 +7,18 @@ import com.alexastudillo.companyregistry.application.persistence.PersistenceFail
 public final class ApiFailures {
     private ApiFailures() {}
     public static Throwable translate(Throwable failure) {
+        if(failure instanceof com.alexastudillo.companyregistry.application.company.CompanyFailure company) {
+            com.alexastudillo.api.response.contract.ApiResponseCode code=switch(company.kind()) {
+                case NOT_FOUND -> com.alexastudillo.api.response.contract.CommonResponseCode.NOT_FOUND;
+                case REFERENCE_NOT_FOUND -> CompanyResponseCode.REFERENCE_NOT_FOUND;
+                case INVALID_REFERENCE -> CompanyResponseCode.INVALID_REFERENCE;
+                case CONFLICT -> CompanyResponseCode.CONFLICT;
+                case INVALID_INPUT -> CompanyResponseCode.BAD_REQUEST;
+                case UNAVAILABLE -> CompanyResponseCode.DEPENDENCY_UNAVAILABLE;
+            };
+            return new ApiResponseException(code);
+        }
+        if(failure instanceof IllegalArgumentException) return new ApiResponseException(CompanyResponseCode.BAD_REQUEST);
         if (failure instanceof com.alexastudillo.companyregistry.application.reference.ReferenceFailure reference) {
             return new ApiResponseException(reference.kind() == com.alexastudillo.companyregistry.application.reference.ReferenceFailure.Kind.INVALID_CONTRACT
                     ? CompanyResponseCode.DEPENDENCY_INVALID_RESPONSE : CompanyResponseCode.DEPENDENCY_UNAVAILABLE);

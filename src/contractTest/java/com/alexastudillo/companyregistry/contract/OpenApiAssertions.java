@@ -19,7 +19,8 @@ public final class OpenApiAssertions {
         assertTrue(actualResult.getMessages().isEmpty(), () -> actualResult.getMessages().toString());
         var expected = expectedResult.getOpenAPI(); var actual = actualResult.getOpenAPI();
         assertEquals(expected.getInfo(), actual.getInfo());
-        assertTrue(actual.getPaths() == null || actual.getPaths().isEmpty(), "No fixture or future business route may be published");
+        assertEquals(Set.of("/v1/companies", "/v1/companies/{companyId}"), actual.getPaths().keySet());
+        assertEquals(expected.getPaths(), actual.getPaths());
         assertEquals(expected.getComponents().getSchemas(), actual.getComponents().getSchemas());
         assertEquals(expected.getComponents().getParameters(), actual.getComponents().getParameters());
         assertEquals(expected.getComponents().getHeaders(), actual.getComponents().getHeaders());
