@@ -1,0 +1,55 @@
+package com.alexastudillo.companyregistry.infrastructure.reference;
+
+import static org.junit.jupiter.api.Assertions.*;
+import com.alexastudillo.companyregistry.application.context.OperationContext;
+import com.alexastudillo.companyregistry.application.reference.*;
+import com.alexastudillo.companyregistry.application.reference.References.*;
+import com.alexastudillo.companyregistry.infrastructure.database.PostgresResource;
+import io.quarkus.test.common.QuarkusTestResource;
+import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
+import java.time.Duration;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+@QuarkusTest @QuarkusTestResource(PostgresResource.class) @QuarkusTestResource(ReferenceStubResource.class)
+class DivisionReferenceAdapterTest {
+    @Inject DivisionReferences divisions;
+    @Test void resolvesCountryBeforeDivisionAndValidatesMembershipCodeAndActivity() {
+        var context = new OperationContext(UUID.randomUUID(), "Actor-aB", UUID.randomUUID().toString());
+        var country = UUID.randomUUID(); var id = UUID.randomUUID(); var stub = ReferenceStubResource.stub; stub.reset();
+        var countryPath = "/api/v1/countries/by-alpha2/EC";
+        var divisionPath = "/api/v1/countries/" + country + "/administrative-divisions/by-canonical-code/EC-P";
+        stub.reply(countryPath, 200, CountryReferenceAdapterTest.body(country, "EC", "ACTIVE"));
+        for (var state : GeographicState.values()) {
+            stub.reply(divisionPath, 200, body(id, country, "EC-P", state.name()));
+            assertEquals(new DivisionReference(id, country, "EC-P", state, GeographicState.ACTIVE),
+                    divisions.find(context, "EC", " ec-p ").await().atMost(Duration.ofSeconds(5)));
+        }
+        assertEquals(countryPath, stub.requests().get(0).path()); assertEquals(divisionPath, stub.requests().get(1).path());
+        for (var request : stub.requests()) {
+            assertEquals(context.processId(), request.header("process-id")); assertEquals(context.actor(), request.header("user-id"));
+            assertNull(request.header("company-id")); assertNull(request.header("Tenant-Id"));
+        }
+        var timeout = Duration.ofSeconds(5);
+        for (var invalid : new String[]{body(id, UUID.randomUUID(), "EC-P", "ACTIVE"), body(id, country, "EC-X", "ACTIVE"), body(id, country, "EC-P", "UNKNOWN")}) {
+            stub.reply(divisionPath, 200, invalid);
+            var awaitable = divisions.find(context, "EC", "EC-P").await();
+            var failure = assertThrows(ReferenceFailure.class, () -> awaitable.atMost(timeout));
+            assertEquals(ReferenceFailure.Kind.INVALID_CONTRACT, failure.kind());
+        }
+        stub.reply(divisionPath, 404, "{\"status\":404,\"code\":\"administrative-division-not-found\"}");
+        assertNull(divisions.find(context, "EC", "EC-P").await().atMost(Duration.ofSeconds(5)));
+        stub.reply(countryPath, 200, CountryReferenceAdapterTest.body(country, "EC", "RETIRED"));
+        stub.reply(divisionPath, 200, body(id, country, "EC-P", "ACTIVE"));
+        var inactive = divisions.find(context, "EC", "EC-P").await().atMost(Duration.ofSeconds(5));
+        assertEquals(GeographicState.RETIRED, inactive.countryState()); assertFalse(inactive.active());
+        stub.reset();
+        assertNull(divisions.find(context, "EC", "EC-P").await().atMost(Duration.ofSeconds(5)));
+        assertEquals(1, stub.requests().size(), "Absent country must not trigger division lookup");
+    }
+    static String body(UUID id, UUID country, String code, String state) {
+        return "{\"status\":200,\"code\":\"successful\",\"data\":{\"id\":\"" + id + "\",\"countryId\":\"" + country
+                + "\",\"canonicalCode\":\"" + code + "\",\"status\":\"" + state + "\",\"defaultName\":\"ignored\"}}";
+    }
+}

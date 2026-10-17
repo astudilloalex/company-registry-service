@@ -22,6 +22,18 @@ podman exec -i company-registry-db psql -U postgres -d company_registry_service 
 
 Wait for `pg_isready` to succeed before provisioning. Passwords shown are disposable local examples. The bootstrap runs once on a new database, creates no application tables, grants DDL to `company_registry_migration` and DML only to `company_registry_runtime`. Flyway creates the six application tables and its technical history. Hibernate schema generation is disabled, and V1 must never be edited to repair a deployed schema.
 
+The Podman command above creates `company_registry_service` through `POSTGRES_DB`.
+For an existing PostgreSQL server where this database is missing, run
+[create-local-database.sql](docs/database/create-local-database.sql) once as a database
+administrator connected to `postgres`, outside a transaction:
+
+```shell
+psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f docs/database/create-local-database.sql
+```
+
+Then run [bootstrap-local.sql](docs/database/bootstrap-local.sql) connected to
+`company_registry_service` to provision the roles and permissions.
+
 Runtime configuration (required outside dev; dev defaults target the local database above):
 
 | Variable | Meaning |
