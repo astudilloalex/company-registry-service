@@ -1,6 +1,14 @@
+import java.util.jar.JarFile
+
 plugins {
     java
     id("io.quarkus")
+}
+
+val verificationBuild = providers.gradleProperty("verification").orElse("false").get().toBooleanStrict()
+if (verificationBuild) {
+    layout.buildDirectory.set(layout.projectDirectory.dir("build/verification"))
+    sourceSets.main { java.srcDir("src/verification/java") }
 }
 
 repositories {
@@ -48,7 +56,8 @@ dependencies {
     testImplementation("io.swagger.parser.v3:swagger-parser:2.1.47")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    testRuntimeOnly("org.postgresql:postgresql")
+    testImplementation("org.postgresql:postgresql")
+    testImplementation("org.awaitility:awaitility")
 }
 
 group = "com.alexastudillo"
@@ -60,6 +69,68 @@ java {
     }
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
+}
+
+// Reusable HTTP fixtures are test-only; packaged/native verification opts in separately.
+sourceSets.test {
+    if (!verificationBuild) java.srcDir("src/verification/java")
+    java.srcDir("src/contractTest/java")
+}
+
+sourceSets.named("integrationTest") {
+    java.setSrcDirs(listOf("src/integrationTest/java", "src/contractTest/java"))
+    resources.setSrcDirs(listOf("src/integrationTest/resources"))
+    compileClasspath -= sourceSets.test.get().output
+    runtimeClasspath -= sourceSets.test.get().output
+}
+
+quarkus {
+    sourceSets { setExtraNativeTest(project.sourceSets["integrationTest"]) }
+}
+
+tasks.named<Test>("quarkusIntTest") {
+    systemProperty("quarkus.test.integration-test-profile", "test")
+    systemProperty("verification.artifact", verificationBuild.toString())
+    systemProperty("native.artifact", providers.systemProperty("quarkus.native.enabled").orElse("false").get())
+    classpath = sourceSets["integrationTest"].runtimeClasspath
+    shouldRunAfter(tasks.test)
+}
+
+tasks.named<Test>("testNative") {
+    systemProperty("quarkus.test.integration-test-profile", "test")
+    systemProperty("verification.artifact", verificationBuild.toString())
+    systemProperty("native.artifact", "true")
+    classpath -= sourceSets.test.get().output
+}
+
+tasks.processResources {
+    from("docs/contracts/company-registry.openapi.yaml") {
+        into("META-INF")
+        rename { "openapi.yaml" }
+    }
+}
+
+tasks.register("verifyProductionIsolation") {
+    group = "verification"
+    description = "Checks that the packaged production application contains its contract and no verification fixtures."
+    dependsOn("quarkusBuild")
+    onlyIf { !verificationBuild }
+    doLast {
+        val jars = fileTree(layout.buildDirectory.dir("quarkus-app/app")) { include("*.jar") }.files
+        check(jars.isNotEmpty()) { "Packaged application JAR is missing" }
+        var contractFound = false
+        jars.forEach { jar ->
+            JarFile(jar).use { archive ->
+                archive.entries().asSequence().forEach { entry ->
+                    check(!entry.name.startsWith("com/alexastudillo/companyregistry/api/verification/")) {
+                        "Verification fixture included in production: ${entry.name}"
+                    }
+                    if (entry.name == "META-INF/openapi.yaml") contractFound = true
+                }
+            }
+        }
+        check(contractFound) { "Packaged contract is missing" }
+    }
 }
 
 tasks.withType<JavaCompile> {

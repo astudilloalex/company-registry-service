@@ -1,8 +1,92 @@
 # company-registry-service
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+## Foundation status and prerequisites
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+Java 25, Gradle wrapper 9.7.0, Quarkus 3.40.1, PostgreSQL 18 and Podman. Production and verification native binaries and the non-root UBI 9 image have passed their process checks; see [native evidence and commands](docs/operations/native-verification.md). Business workflows are introduced by later HU. See [architecture decisions](docs/architecture/adr-001-reactive-native-foundation.md), [invariants](docs/architecture/adr-002-company-site-invariants.md), [normalization](docs/architecture/text-normalization.md) and [dependency credentials](docs/architecture/dependencies.md).
+
+## Local database (Podman)
+
+On a fresh local database, provision roles/grants separately from application migrations:
+
+```shell
+export DB_PASSWORD=company_registry_local
+export FLYWAY_DB_PASSWORD=company_registry_local
+podman run -d --name company-registry-db -p 127.0.0.1:15433:5432 \
+  -e POSTGRES_DB=company_registry_service -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=company_registry_admin_local \
+  -e DB_PASSWORD -e FLYWAY_DB_PASSWORD docker.io/library/postgres:18-alpine
+podman exec company-registry-db pg_isready -U postgres -d company_registry_service
+podman exec -i company-registry-db psql -U postgres -d company_registry_service < docs/database/bootstrap-local.sql
+./gradlew quarkusDev
+```
+
+Wait for `pg_isready` to succeed before provisioning. Passwords shown are disposable local examples. The bootstrap runs once on a new database, creates no application tables, grants DDL to `company_registry_migration` and DML only to `company_registry_runtime`. Flyway creates the six application tables and its technical history. Hibernate schema generation is disabled, and V1 must never be edited to repair a deployed schema.
+
+Runtime configuration (required outside dev; dev defaults target the local database above):
+
+| Variable | Meaning |
+| --- | --- |
+| `DB_USERNAME` | Runtime role, local `company_registry_runtime` |
+| `DB_PASSWORD` | Runtime role password |
+| `DB_REACTIVE_URL` | `postgresql://localhost:15433/company_registry_service` |
+| `DB_JDBC_URL` | Migration transport URL, `jdbc:postgresql://localhost:15433/company_registry_service` |
+| `FLYWAY_DB_USERNAME` | Migration role, local `company_registry_migration` |
+| `FLYWAY_DB_PASSWORD` | Independent migration password |
+
+Both URLs must target the same logical database. The JDBC URL is used for Flyway startup only; requests use reactive persistence. No broker or provider is needed for startup.
+
+## External reference clients
+
+| Variable | Default |
+| --- | --- |
+| `PARTY_REGISTRY_BASE_URL` | `http://localhost:8082` |
+| `GEOGRAPHIC_REFERENCE_BASE_URL` | `http://localhost:8081` |
+| `PARTY_REGISTRY_CONNECT_TIMEOUT_MS` / `GEOGRAPHIC_REFERENCE_CONNECT_TIMEOUT_MS` | `2000` |
+| `PARTY_REGISTRY_READ_TIMEOUT_MS` / `GEOGRAPHIC_REFERENCE_READ_TIMEOUT_MS` | `5000` |
+
+Timeouts must be positive finite milliseconds (at most int32 maximum). Override
+URLs for the deployment; clients make no startup calls and perform no generic
+retries. Party receives Tenant-Id/User-Id/Process-Id. Geography receives only
+User-Id/Process-Id: Tenant-Id is never converted to company-id. Provider absence,
+inactivity/type mismatch, timeout, unavailability and invalid contracts remain
+distinct. See [contract provenance](docs/contracts/external-references.md).
+
+## Outbox foundation
+
+`COMPANY_OUTBOX_MODE` accepts `disabled` (default; no event storage), `stored-only`
+and `published` (both select atomic storage). **T00 has no publisher in any mode**:
+HU08 adds scheduling, claims/leases, retry/backoff, acknowledgements and sends.
+There is no RabbitMQ connector/channel/emitter or required broker credential.
+
+| Property suffix under `company-registry.outbox.publisher` | Variable | Default |
+| --- | --- | --- |
+| `poll-interval` | `COMPANY_OUTBOX_POLL_INTERVAL` | `5s` |
+| `batch-size` | `COMPANY_OUTBOX_BATCH_SIZE` | `25` |
+| `publish-timeout` | `COMPANY_OUTBOX_PUBLISH_TIMEOUT` | `5s` |
+| `claim-lease` | `COMPANY_OUTBOX_CLAIM_LEASE` | `30s` |
+| `initial-backoff` | `COMPANY_OUTBOX_INITIAL_BACKOFF` | `1s` |
+| `maximum-backoff` | `COMPANY_OUTBOX_MAXIMUM_BACKOFF` | `5m` |
+| `maximum-attempts` | `COMPANY_OUTBOX_MAXIMUM_ATTEMPTS` | `10` |
+| `exchange` | `COMPANY_OUTBOX_EXCHANGE` | `company.events` |
+| `routing-key` | `COMPANY_OUTBOX_ROUTING_KEY` | `company.events` |
+
+Durations/counts must be positive, maximum backoff must not be below initial
+backoff, and destinations must not be blank. Settings are validated at startup
+even though T00 performs no publication. Local, test and production deployments
+can override the listed variables without provisioning a broker.
+
+## Tests
+
+With the rootless Podman API socket active:
+
+```shell
+systemctl --user start podman.socket
+export DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+export TESTCONTAINERS_RYUK_DISABLED=true
+./gradlew test
+```
+
+Tests own/stop isolated PostgreSQL 18 containers and execute the same local bootstrap script, validate Flyway and verify runtime permissions. Pure Domain tests need no database. JDBC/psql provisioning is exclusively a test boundary. `./gradlew clean build` and `./gradlew quarkusIntTest` provide JVM checks; native execution is verified separately.
 
 ## Running the application in dev mode
 
@@ -14,7 +98,7 @@ You can run your application in dev mode that enables live coding using:
 
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
 
-## Packaging and running the application
+## JVM packaging for development
 
 The application can be packaged using:
 
@@ -27,28 +111,50 @@ Be aware that it’s not an _über-jar_ as the dependencies are copied into the 
 
 The application is now runnable using `java -jar build/quarkus-app/quarkus-run.jar`.
 
-If you want to build an _über-jar_, execute the following command:
+## Native delivery and verification
 
-```shell script
-./gradlew build -Dquarkus.package.jar.type=uber-jar
+Build the production binary with Mandrel JDK 25 and explicit Podman:
+
+```shell
+./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar build/*-runner.jar`.
+Run against the bootstrapped local database (passwords are disposable examples):
 
-## Creating a native executable
-
-You can create a native executable using:
-
-```shell script
-./gradlew build -Dquarkus.native.enabled=true
+```shell
+export DB_USERNAME=company_registry_runtime
+export DB_PASSWORD=company_registry_local
+export DB_REACTIVE_URL=postgresql://localhost:15433/company_registry_service
+export DB_JDBC_URL=jdbc:postgresql://localhost:15433/company_registry_service
+export FLYWAY_DB_USERNAME=company_registry_migration
+export FLYWAY_DB_PASSWORD=company_registry_local
+export COMPANY_OUTBOX_MODE=disabled
+./build/company-registry-service-1.0.0-SNAPSHOT-runner -Dquarkus.http.port=8080
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
+The application exposes `/q/health/ready` and `/q/openapi` without business headers.
+It requires neither a proxy nor reachable Party/Geographic/RabbitMQ for startup.
+Production contains no commercial CRUD or verification endpoints in T00.
 
-```shell script
-./gradlew build -Dquarkus.native.enabled=true -Dquarkus.native.container-build=true
+`-Pverification=true` explicitly builds the separate verification artifact under
+`build/verification/`, compiling `src/verification/java`; it is not a runtime flag
+that hides fixture routes in production. `integrationTest` shares only
+`src/contractTest` and excludes unit-test CDI outputs. The native-test commands,
+profile/socket configuration, hashes, builder digest, build resources and every
+native suite are in [native-verification.md](docs/operations/native-verification.md).
+Run those tests immediately after the corresponding native build; after a JVM
+build the Quarkus artifact metadata describes that JVM package instead.
+
+The verified heap was 5 GiB with two compiler threads; 3 GiB exhausted the compiler
+Java heap. Both successful builds took about ten minutes on the recorded machine.
+
+Build the production image:
+
+```shell
+podman build -f src/main/docker/Dockerfile.native -t company-registry-service:native .
 ```
 
-You can then execute your native executable with: `./build/company-registry-service-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/gradle-tooling>.
+Use the documented database variables and a reachable Podman database hostname
+when running the image. The [isolated image recipe](docs/operations/native-verification.md#native-oci-image-118)
+records the verified run, ports and cleanup. The image uses UBI 9 Minimal, user
+1001 and the native binary directly, without a JVM or source mounts.
