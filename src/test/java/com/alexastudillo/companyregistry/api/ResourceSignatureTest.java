@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 /** Rejects compilable but contract-invalid business resource response signatures. */
 class ResourceSignatureTest {
     @Test void everyVerificationEndpointUsesExplicitEnvelopeWithAnApiDto() {
+        verify(com.alexastudillo.companyregistry.api.company.CompanyResource.class);
         verify(FoundationResource.class);
         verify(com.alexastudillo.companyregistry.api.verification.PersistenceProbeResource.class);
         verify(com.alexastudillo.companyregistry.api.verification.ReferenceProbeResource.class);
@@ -30,6 +31,7 @@ class ResourceSignatureTest {
             var response = parameter(method.getGenericReturnType(), Uni.class);
             var envelope = parameter(response, RestResponse.class);
             var payload = parameter(envelope, ApiResponse.class);
+            if(payload instanceof ParameterizedType) payload=parameter(payload, java.util.List.class);
             Class<?> dto = assertInstanceOf(Class.class, payload);
             assertTrue(dto.getPackageName().startsWith("com.alexastudillo.companyregistry.api."), method.toString());
             assertFalse(dto.isAnnotationPresent(jakarta.persistence.Entity.class));

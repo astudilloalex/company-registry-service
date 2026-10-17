@@ -23,7 +23,10 @@ class RegistrationRecoveryTest {
     @Inject AtomicOperation atomic; @Inject CompanyRepository companies; @Inject CompletionRepository completions;
     @Inject PartyReads parties; @Inject Fingerprints fingerprints; @Inject AcceptedResults results; @Inject CreationEvents events;
     @Inject Identifiers ids; @Inject Clock clock; @Inject Flyway flyway; @Inject io.vertx.core.Vertx vertx;
-    private RegisterCompany service(AtomicOperation operation,Fingerprints signing) {return new RegisterCompany(operation,companies,completions,parties,signing,results,events,ids,clock);}
+    private RegisterCompany service(AtomicOperation operation,Fingerprints signing) {
+        return new RegisterCompany(new RegisterCompany.Storage(operation, companies, events),
+                new RegisterCompany.Idempotency(completions, signing, results), parties, ids, clock);
+    }
     private CompanyRegistration.Command command(UUID tenant,UUID party,String key) {return new CompanyRegistration.Command(new OperationContext(tenant,"Actor-aB",UUID.randomUUID().toString()),key,party,"acme","name",null,null);}
     private void provider(UUID party) {var stub=ReferenceStubResource.stub;stub.reply("/v1/parties/"+party,200,PartyReadAdapterTest.detail(party,"LEGAL_ENTITY","ACTIVE"));stub.reply("/v1/parties/"+party+"/identifiers",200,PartyReadAdapterTest.page("",0,null));}
     private <T> CompletableFuture<T> invoke(Supplier<Uni<T>> operation) {

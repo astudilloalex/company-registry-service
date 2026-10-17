@@ -53,7 +53,7 @@ class AtomicOperationTest {
         a.assertEquals(() -> atomic.read(() -> completions.find(f.completion().key())), f.completion());
         a.assertEquals(() -> atomic.read(() -> events.find(company.tenantId(), f.event().id())), f.event());
         a.assertFailedWith(() -> atomic.execute(() -> companies.insert(f.company())), failure ->
-                assertEquals(PersistenceFailure.Kind.DUPLICATE, assertInstanceOf(PersistenceFailure.class, failure).kind()));
+                assertEquals(PersistenceFailure.Kind.UNEXPECTED, assertInstanceOf(PersistenceFailure.class, failure).kind()));
     }
 
     @Test @RunOnVertxContext

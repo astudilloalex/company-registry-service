@@ -14,8 +14,29 @@ import org.junit.jupiter.api.Test;
 class BusinessContextHttpTest {
     private static final String PATH = "/v1/_verification/context";
     private Map<String, String> headers() {
-        return new LinkedHashMap<>(Map.of("Process-Id", UUID.randomUUID().toString().toUpperCase(Locale.ROOT),
+        return new LinkedHashMap<>(Map.of("Process-Id", UUID.randomUUID().toString(),
                 "Tenant-Id", UUID.randomUUID().toString(), "User-Id", "Actor-aB"));
+    }
+    @Test void rejectsUppercaseContextBeforeGetPostAndReplay() {
+        for (var header : List.of("Tenant-Id", "Process-Id")) {
+            for (var path : List.of("/v1/companies", "/v1/companies/0199e000-0000-7000-8000-000000000001")) {
+                var h = headers();
+                h.put(header, "ABCDEF01-2345-6789-ABCD-EF0123456789");
+                var response = given().headers(h).get(path).then().statusCode(400)
+                        .body("code", equalTo(header.toLowerCase(Locale.ROOT) + "-invalid"));
+                response.header("Process-Id", header.equals("Process-Id") ? nullValue() : equalTo(h.get("Process-Id")));
+            }
+            var h = headers();
+            h.put(header, "ABCDEF01-2345-6789-ABCD-EF0123456789");
+            // Reusing the key must never bypass context validation, even before routes exist.
+            for (int attempt = 0; attempt < 2; attempt++) {
+                given().headers(h).header("Idempotency-Key", "context-replay")
+                        .contentType("application/json").body("{}")
+                        .post("/v1/companies").then().statusCode(400)
+                        .body("code", equalTo(header.toLowerCase(Locale.ROOT) + "-invalid"))
+                        .header("Process-Id", header.equals("Process-Id") ? nullValue() : equalTo(h.get("Process-Id")));
+            }
+        }
     }
     @Test void rejectsMissingDuplicateAndInvalidHeadersAndKeepsValidatedProcess() {
         for (var header : List.of("Process-Id", "Tenant-Id", "User-Id")) {
