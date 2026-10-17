@@ -24,3 +24,23 @@ validates the example and produced event with Draft 2020-12 and rejects extra
 payload fields. Schema validation belongs to the external test harness; the
 runtime candidate and mapper enforce the cross-field invariants. JVM resource
 checks do not substitute for native execution evidence.
+
+## company.updated.v1
+
+HU02 records effective operational changes in the same local transaction as
+Company and its optional accepted completion. The eleven-field envelope and
+seven-field payload (`companyId`, `partyId`, `code`, `operatingName`, `status`,
+`updatedAt`, `updatedBy`) describe the resulting revision. `companyId` equals
+`aggregateId`; `updatedAt` equals `occurredAt`; the actor is original User-Id.
+HTTP causation is explicit null. Description, URL and legal Party data are excluded.
+No-op and replay never create another event. `disabled` omits storage;
+`stored-only` and `published` store PENDING with zero attempts/technical version.
+No mode publishes or requires RabbitMQ in HU02.
+
+The schema permits ARCHIVED for the HU03 archival producer; HU02 emits only
+DRAFT/ACTIVE/INACTIVE and does not implement archival. HU08 will deliver to
+exchange `company.events`, routing key `company.updated.v1`, using the original
+stored snapshot and eventId even after later Company changes. Consumers deduplicate
+by eventId and reason about aggregateVersion; no global order or exactly-once
+promise is made. Claims, leases, confirms and delivery retries remain HU08 work.
+Schema and example are packaged under `META-INF/contracts/events/` in JVM/native.

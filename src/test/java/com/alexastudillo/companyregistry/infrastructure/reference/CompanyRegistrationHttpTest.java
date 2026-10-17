@@ -29,6 +29,73 @@ class CompanyRegistrationHttpTest {
     private long blockedInserts() throws Exception {
         try(var c=flyway.getConfiguration().getDataSource().getConnection();var s=c.createStatement();var r=s.executeQuery("SELECT count(*) FROM pg_locks WHERE relation='companies'::regclass AND mode='RowExclusiveLock' AND NOT granted")) {r.next();return r.getLong(1);}
     }
+    @Test void clearedDescriptionIsOmittedByPatchAndTheSubsequentEnrichedGet() throws Exception {
+        var stub=ReferenceStubResource.stub;stub.reset();
+        var tenant=UUID.randomUUID();var party=UUID.randomUUID();provider(party);var h=headers(tenant);
+        var request=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(body(party,"clear"));
+        request.put("description","original description");
+        var created=given().headers(h).contentType("application/json").body(request.toString()).post("/v1/companies");
+        created.then().statusCode(201).body("data.description",equalTo("ORIGINAL DESCRIPTION"));
+        var id=json.readTree(created.asString()).path("data").path("companyId").asText();
+        var update=new HashMap<>(h);update.put("If-Match","0");update.put("Idempotency-Key","clear-description");
+        update.put("User-Id","Updater-aB");update.put("Process-Id",UUID.randomUUID().toString());
+        stub.reset();provider(party);
+        var patched=given().headers(update).contentType("application/json")
+                .body("{\"description\":null,\"operatingName\":\" updated company \"}").patch("/v1/companies/"+id);
+        patched.then().statusCode(200).body("data.operatingName",equalTo("UPDATED COMPANY")).body("data.version",equalTo(1));
+        var operational=json.readTree(patched.asString()).path("data");
+        assertFalse(operational.has("description"));assertFalse(operational.has("party"));assertTrue(stub.requests().isEmpty());
+        var fetched=given().headers(h).get("/v1/companies/"+id);
+        fetched.then().statusCode(200).body("data.party.partyId",equalTo(party.toString()));
+        var enriched=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(fetched.asString()).path("data");
+        assertFalse(enriched.has("description"));assertTrue(enriched.path("party").isObject());
+        enriched.remove("party");assertEquals(operational,enriched);
+        assertFalse(stub.requests().isEmpty());
+        assertEquals(2,count("company_idempotency_records",tenant));assertEquals(2,count("company_outbox_events",tenant));
+    }
+    @Test void creationAndUpdateKeysRemainIndependentAcrossOperationsAndTenants() throws Exception {
+        var stub=ReferenceStubResource.stub;stub.reset();
+        var tenants=List.of(UUID.randomUUID(),UUID.randomUUID());
+        var parties=List.of(UUID.randomUUID(),UUID.randomUUID());
+        var creations=new ArrayList<JsonNode>();var updates=new ArrayList<JsonNode>();
+        for(int i=0;i<tenants.size();i++) {
+            var tenant=tenants.get(i);var party=parties.get(i);provider(party);var h=headers(tenant);
+            var created=given().headers(h).contentType("application/json").body(body(party,"scoped")).post("/v1/companies");
+            created.then().statusCode(201);
+            var original=json.readTree(created.asString()).path("data");creations.add(original);
+            var update=new HashMap<>(h);update.put("If-Match","0");update.put("User-Id","Updater-aB");
+            var patched=given().headers(update).contentType("application/json")
+                    .body("{\"operatingName\":\"updated tenant "+i+"\"}").patch("/v1/companies/"+original.path("companyId").asText());
+            patched.then().statusCode(200).body("data.version",equalTo(1)).body("data.operatingName",equalTo("UPDATED TENANT "+i));
+            updates.add(json.readTree(patched.asString()).path("data"));
+        }
+        assertNotEquals(creations.get(0).path("companyId"),creations.get(1).path("companyId"));
+        stub.reset();
+        for(int i=0;i<tenants.size();i++) {
+            var tenant=tenants.get(i);var retry=new HashMap<>(headers(tenant));
+            retry.put("User-Id","Replay-actor");
+            var createdReplay=given().headers(retry).contentType("application/json").body(body(parties.get(i),"scoped")).post("/v1/companies");
+            createdReplay.then().statusCode(201).header("Process-Id",retry.get("Process-Id"));
+            assertEquals(creations.get(i),json.readTree(createdReplay.asString()).path("data"));
+            retry.put("If-Match","0");
+            var updatedReplay=given().headers(retry).contentType("application/json")
+                    .body("{\"operatingName\":\"updated tenant "+i+"\"}").patch("/v1/companies/"+creations.get(i).path("companyId").asText());
+            updatedReplay.then().statusCode(200).header("Process-Id",retry.get("Process-Id"));
+            assertEquals(updates.get(i),json.readTree(updatedReplay.asString()).path("data"));
+            try(var c=flyway.getConfiguration().getDataSource().getConnection();var s=c.prepareStatement(
+                    "SELECT operation,idempotency_key FROM company_idempotency_records WHERE tenant_id=? ORDER BY operation")) {
+                s.setObject(1,tenant);
+                try(var rows=s.executeQuery()) {
+                    for(var operation:List.of("company.create.v1","company.update.v1")) {
+                        assertTrue(rows.next());assertEquals(operation,rows.getString(1));assertEquals("Key-aB",rows.getString(2));
+                    }
+                    assertFalse(rows.next());
+                }
+            }
+            assertEquals(1,count("companies",tenant));assertEquals(2,count("company_outbox_events",tenant));
+        }
+        assertTrue(stub.requests().isEmpty());
+    }
     @Test void statusFilteredForwardPageUsesTheExistingTenantOrderIndex() throws Exception {
         var tenant=UUID.randomUUID();
         try(var c=flyway.getConfiguration().getDataSource().getConnection();var s=c.createStatement()) {

@@ -122,6 +122,8 @@ tasks.register("verifyProductionIsolation") {
         check(jars.isNotEmpty()) { "Packaged application JAR is missing" }
         var contractFound = false
         var eventContractFound = false
+        var updateContractFound = false
+        var updateExampleFound = false
         jars.forEach { jar ->
             JarFile(jar).use { archive ->
                 archive.entries().asSequence().forEach { entry ->
@@ -130,11 +132,14 @@ tasks.register("verifyProductionIsolation") {
                     }
                     if (entry.name == "META-INF/openapi.yaml") contractFound = true
                     if (entry.name == "META-INF/contracts/events/company.created.v1.schema.json") eventContractFound = true
+                    if (entry.name == "META-INF/contracts/events/company.updated.v1.schema.json") updateContractFound = true
+                    if (entry.name == "META-INF/contracts/events/company.updated.v1.example.json") updateExampleFound = true
                 }
             }
         }
         check(contractFound) { "Packaged contract is missing" }
         check(eventContractFound) { "Packaged creation event contract is missing" }
+        check(updateContractFound && updateExampleFound) { "Packaged update event contract/example is missing" }
     }
 }
 

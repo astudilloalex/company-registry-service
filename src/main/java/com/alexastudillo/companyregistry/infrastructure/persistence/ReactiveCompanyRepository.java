@@ -10,6 +10,31 @@ import java.util.UUID;
 @ApplicationScoped
 public class ReactiveCompanyRepository implements CompanyRepository, PanacheRepositoryBase<CompanyEntity, UUID> {
     @Override
+    public Uni<CompanyRecord> findForUpdate(UUID tenantId, UUID companyId) {
+        return find("tenantId = ?1 and id = ?2", tenantId, companyId)
+                .withLock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE).firstResult()
+                .map(row -> row == null ? null : row.value());
+    }
+
+    @Override
+    public Uni<CompanyRecord> update(CompanyRecord row, long expectedVersion) {
+        if (expectedVersion < 0 || expectedVersion == Long.MAX_VALUE || row.company().version().value() != expectedVersion + 1)
+            throw new IllegalArgumentException("update-version-invalid");
+        // Bulk HQL changes no managed entity; @Version cannot add a second increment.
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put("tenant", row.company().tenantId()); parameters.put("id", row.company().id());
+        parameters.put("expected", expectedVersion); parameters.put("code", row.code());
+        parameters.put("name", row.operatingName()); parameters.put("description", row.description());
+        parameters.put("logo", row.logoUrl()); parameters.put("at", row.audit().updatedAt());
+        parameters.put("actor", row.audit().updatedBy());
+        return update("code=:code, operatingName=:name, description=:description, logoUrl=:logo, updatedAt=:at, updatedBy=:actor, "
+                + "version=version+1 where tenantId=:tenant and id=:id and version=:expected", parameters)
+                .chain(count -> count == 1 ? Uni.createFrom().item(row)
+                        : Uni.createFrom().failure(new com.alexastudillo.companyregistry.application.persistence.PersistenceFailure(
+                                com.alexastudillo.companyregistry.application.persistence.PersistenceFailure.Kind.STALE_VERSION, null)));
+    }
+
+    @Override
     public Uni<java.util.List<CompanyRecord>> page(UUID tenantId,
             com.alexastudillo.companyregistry.application.company.CompanySelection.Filters filters,
             com.alexastudillo.companyregistry.application.company.CompanySelection.Boundary boundary, int limit) {

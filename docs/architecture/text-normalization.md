@@ -21,6 +21,30 @@ Normalize at the API input copy before Bean Validation; reuse the pure policy in
 
 Optional business text is absent only when null; supplying blank is invalid. Accents and internal spacing are preserved; no transliteration, internal whitespace collapse, or Unicode normalization is performed. `strip()` removes outer Java whitespace. UUID canonical syntax and actor safety are API responsibilities; `OperationContext` retains validated process spelling exactly.
 
+## Partial operational updates (HU02)
+
+`CompanyInformationPatch` retains presence separately from value for `code`, `operatingName`,
+`description` and `logoUrl`. An omitted property retains the stored value. A present null
+clears only `description` or `logoUrl`; clearing `code` or `operatingName` is invalid.
+`CompanyInformationPolicy` applies the table's rules only to present properties, after
+selecting the applicable fingerprint policy. The HTTP reader must retain original text
+until that selection so historical replay uses its original policy.
+
+Limits are 64/200/500 Unicode code points for code/name/description after strip and
+uppercase expansion. For example, ` ß ` becomes `SS`, and ` compañía  ágil ` becomes
+`COMPAÑÍA  ÁGIL`. Thirty-two `ß` characters fit code; thirty-three do not. Supplied
+blank text is invalid even for optional description. URLs retain exact case and query
+content, must be absolute HTTP/HTTPS with a host, have no outer whitespace and contain
+at most 1000 code points. The URL validator is the same implementation used by HU01;
+creation input and creation fingerprint canonicalization are unchanged.
+
+After applying a canonical patch, equality of all four operational values means no-op,
+including `{}` and clearing an already null optional. Editing is allowed only in DRAFT,
+ACTIVE and INACTIVE; ARCHIVED rejects even a no-op. No-op keeps aggregate version and
+audit intact. Actor, process, keys, UUIDs and URL contents remain excluded from business
+text normalization. `CompanyInformationPatchTest` and `CompanyInformationPolicyTest`
+exercise presence, required clears, canonical limits, exact URLs, no-op and lifecycle.
+
 ## Java/PostgreSQL compatibility
 
 Java performs canonicalization; PostgreSQL CHECKs verify the stored canonical output, not an independent normalization of raw request input. Java and PostgreSQL do not promise identical Unicode/collation behavior for every raw character. Tests verify canonical accented Spanish text, Ç, Turkish-locale independence and `straße`→`STRASSE`. PostgreSQL 18 must accept that canonical output under `upper(value) = value` and `btrim(value) = value`. Deployments must use a compatible UTF-8 database locale; do not use SQL `upper(rawInput)` as the request fingerprint algorithm.

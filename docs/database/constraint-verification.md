@@ -296,3 +296,23 @@ active key to an old hash. `FingerprintMetadataIntegrityTest` covers a real V1
 schema with technical snapshots, preflight rejection, upgrade and clean install;
 `TechnicalMappingTest` covers metadata and enriched JSONB via reactive mappings.
 V1 remains unchanged, checksum -272976494, with six application tables.
+
+## V3 update acceptance metadata
+
+`ck_company_idempotency_update_metadata` restricts `company.update.v1` to positive
+fingerprint policy with a valid external key identity, a non-null nonnegative
+expected aggregate version, HTTP 200 and null Site. Both changed and no-op
+acceptances use this shape. Other namespaces retain their V1/V2 contracts.
+The existing `ck_company_idempotency_fingerprint_metadata`, hash, snapshot,
+version and tenant-qualified foreign keys continue to apply.
+
+`UpdateMetadataIntegrityTest` covers accepted change/no-op snapshots, insert and
+update rejection, missing provenance/precondition, invalid key/policy/hash/JSON,
+snapshot version, status, Site, tenant ownership and duplicate completion key.
+`UpdateMetadataMigrationTest` exercises V2 with existing HU01 Company/completion/
+event rows, controlled preflight failure for an incompatible HU02 acceptance,
+and upgrade preserving the original rows. The preflight does not delete or
+rewrite any acceptance. `DatabaseStartupTest`, `SchemaCatalogIntegrityTest` and
+`SchemaDocumentationTest` check clean V3 startup, separate runtime/migrator
+permissions, six application tables, installed constraints and this inventory.
+V1/V2 source files remain unchanged; do not repair their checksums to deploy V3.

@@ -142,6 +142,69 @@ paths:
         '503': *id007
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateCompanyInformation
+      summary: Patch operational Company information locally
+      description: Replay precedes current existence/version/state. New operations check tenant ownership (404),
+        version (412), then ARCHIVED (409). Editable DRAFT/ACTIVE/INACTIVE retain state. No-op preserves version/audit
+        and emits no event. Effective change increments once and commits atomically with optional completion and
+        enabled event.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCompanyRequest'
+            examples:
+              Modify:
+                value:
+                  operatingName: COMPAÑÍA ÁGIL
+              Clear:
+                value:
+                  description: null
+                  logoUrl: null
+              Noop:
+                value: {}
+              Replay:
+                summary: Repeat original body with original precondition and key after later edits
+                value:
+                  operatingName: COMPAÑÍA ÁGIL
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/AggregateVersionMismatch'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+        '200':
+          description: Accepted modification, no-op or original historical replay; no external calls.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyOperationalEnvelope'
 components:
   parameters:
     TenantId:
@@ -222,6 +285,17 @@ components:
         minimum: 1
         maximum: 200
         default: 50
+    UpdateIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional durable update intent key. One nonblank opaque value up to 128 code points, preserved
+        exactly. Repeat original body and If-Match for replay.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+      example: Key-aB
   headers:
     ProcessId:
       description: Exactly the validated request Process-Id. Omitted when that input is missing/invalid.
@@ -555,6 +629,112 @@ components:
           items:
             $ref: '#/components/schemas/PartyIdentifierResponse'
       additionalProperties: false
+    UpdateCompanyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        operatingName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 500
+        logoUrl:
+          type:
+          - string
+          - 'null'
+          format: uri
+          maxLength: 1000
+      description: Omitted fields retain values; null clears description/logoUrl only. Text is canonicalized before
+        limits. Duplicate, unknown and system properties are rejected. Empty object is a no-op with current version.
+    CompanyOperationalResponse:
+      description: Accepted operational Company, without Party or providers. Null optionals omitted.
+      type: object
+      required:
+      - companyId
+      - partyId
+      - code
+      - operatingName
+      - status
+      - version
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      properties:
+        companyId:
+          type: string
+          format: uuid
+        partyId:
+          type: string
+          format: uuid
+          description: Opaque Party identity; authoritative legal details remain external.
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        operatingName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+        logoUrl:
+          type: string
+          maxLength: 1000
+          description: Case-sensitive opaque URL.
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          - ARCHIVED
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          minLength: 1
+          maxLength: 128
+        updatedBy:
+          type: string
+          minLength: 1
+          maxLength: 128
+      additionalProperties: false
+    CompanyOperationalEnvelope:
+      type: object
+      required:
+      - status
+      - code
+      - data
+      properties:
+        status:
+          type: integer
+          const: 200
+        code:
+          type: string
+          const: successful
+        data:
+          $ref: '#/components/schemas/CompanyOperationalResponse'
+      additionalProperties: false
   examples:
     CompanySuccess:
       summary: Original enriched accepted Company, including masked identifiers.
@@ -788,3 +968,21 @@ components:
           example:
             status: 503
             code: dependency-unavailable
+    AggregateVersionMismatch:
+      description: 'Expected Company version is stale: aggregate-version-mismatch.'
+      headers:
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnsupportedMediaType:
+      description: Unsupported media type.
+      headers:
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

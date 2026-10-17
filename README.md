@@ -151,7 +151,8 @@ export COMPANY_OUTBOX_MODE=disabled
 
 The application exposes `/q/health/ready` and `/q/openapi` without business headers.
 It requires neither a proxy nor reachable Party/Geographic/RabbitMQ for startup.
-Production contains no commercial CRUD or verification endpoints in T00.
+The production artifact exposes HU01 registration/retrieval and HU02 local PATCH.
+Verification fixture routes belong to the separate verification artifact.
 
 `-Pverification=true` explicitly builds the separate verification artifact under
 `build/verification/`, compiling `src/verification/java`; it is not a runtime flag
@@ -176,7 +177,7 @@ when running the image. The [isolated image recipe](docs/operations/native-verif
 records the verified run, ports and cleanup. The image uses UBI 9 Minimal, user
 1001 and the native binary directly, without a JVM or source mounts.
 
-## HU01 fingerprint keys
+## Fingerprint keys (HU01/HU02)
 
 HU01 requires `COMPANY_IDEMPOTENCY_ACTIVE_KEY_ID` and an external keyring under
 `company-registry.idempotency.keys.<id>`. Supply Base64 secrets representing at
@@ -202,3 +203,19 @@ The test profile has explicitly disposable keys; they are not production default
 HU01 JVM, packaged/native-process and non-root image evidence, with the
 AC01–AC13 mapping and reproducible image check, is recorded in
 [HU01 acceptance](docs/operations/hu01-acceptance-review.md).
+
+HU02 uses the same external keyring with its own `company.update.v1` fingerprint
+policy and operational snapshot codec, both version 1. Retain every historical
+key needed by either operation, including no-op acceptances; there is no TTL.
+Updates compare using the stored policy/key ID after rollback as well as on the
+initial replay lookup. Their intent includes Company ID, original expected
+version and patch presence/null/value; actor/process and current Company state
+are excluded. HU01 canonical bytes and enriched Company/Party snapshots retain
+their original contract. HU02 snapshots retain operational values and explicit
+internal nulls independently of HTTP omission and never require Party lookup.
+
+HU02 adds local `PATCH /v1/companies/{companyId}` with mandatory decimal If-Match
+and optional Idempotency-Key. See [the update contract](docs/contracts/company-information-management.md)
+for clearing, no-op, durable replay, error precedence and audit semantics.
+`COMPANY_UPDATE_WAIT_BUDGET` sets a shared local database budget (default `10s`,
+positive and finite). PATCH requires no provider or broker connectivity.

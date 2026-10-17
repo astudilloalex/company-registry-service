@@ -12,6 +12,7 @@ public final class ApiFailures {
                 case NOT_FOUND -> com.alexastudillo.api.response.contract.CommonResponseCode.NOT_FOUND;
                 case REFERENCE_NOT_FOUND -> CompanyResponseCode.REFERENCE_NOT_FOUND;
                 case INVALID_REFERENCE -> CompanyResponseCode.INVALID_REFERENCE;
+                case VERSION_MISMATCH -> CompanyResponseCode.STALE_VERSION;
                 case CONFLICT -> CompanyResponseCode.CONFLICT;
                 case INVALID_INPUT -> CompanyResponseCode.BAD_REQUEST;
                 case UNAVAILABLE -> CompanyResponseCode.DEPENDENCY_UNAVAILABLE;

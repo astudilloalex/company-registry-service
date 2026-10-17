@@ -126,7 +126,7 @@ final class PersistenceFailures {
 
     private static Kind classifySqlState(String state) {
         return switch (state) {
-            case "55P03" -> Kind.UNAVAILABLE;
+            case "55P03", "40P01", "40001" -> Kind.UNAVAILABLE;
             case "23505" -> Kind.DUPLICATE;
             case "23503", "23001" -> Kind.INVALID_REFERENCE;
             default -> classifySqlStatePrefix(state);
