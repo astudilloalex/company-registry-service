@@ -16,7 +16,10 @@ import org.junit.jupiter.api.Test;
 class PartyEnrichmentLimitsTest {
     private final OperationContext context = new OperationContext(UUID.randomUUID(),"Actor-aB",UUID.randomUUID().toString());
     private PartyReadAdapter adapter(PartyClient client) {
-        var adapter=new PartyReadAdapter(); adapter.client=client; adapter.concurrency=3; adapter.deadline=Duration.ofSeconds(5); return adapter;
+        return adapter(client, Duration.ofSeconds(5));
+    }
+    private PartyReadAdapter adapter(PartyClient client, Duration deadline) {
+        return new PartyReadAdapter(client, deadline, 3);
     }
     private static PartyReadModels.Detail detail(UUID id) {
         var now=Instant.parse("2026-10-17T14:30:00Z");
@@ -44,7 +47,7 @@ class PartyEnrichmentLimitsTest {
     }
     @Test void sharedDeadlineAndCallerCancellationCancelOutstandingHttpWork() {
         for(var byDeadline:List.of(true,false)) {
-            var client=mock(PartyClient.class); var adapter=adapter(client); adapter.deadline=Duration.ofMillis(50);
+            var client=mock(PartyClient.class); var adapter=adapter(client, Duration.ofMillis(50));
             var cancelled=new AtomicBoolean();
             when(client.detail(any(),anyString(),anyString(),anyString())).thenReturn(Uni.createFrom().emitter(emitter->emitter.onTermination(()->cancelled.set(true))));
             if(byDeadline) {
@@ -58,5 +61,14 @@ class PartyEnrichmentLimitsTest {
             assertTrue(cancelled.get());
             verify(client,never()).identifiers(any(),anyString(),anyString(),anyString(),anyInt(),any());
         }
+    }
+    @Test void rejectsInvalidConfigurationLimits() {
+        var client = mock(PartyClient.class);
+        assertThrows(IllegalArgumentException.class, () -> new PartyReadAdapter(client, Duration.ZERO, 4));
+        var negative = Duration.ofSeconds(-1);
+        assertThrows(IllegalArgumentException.class, () -> new PartyReadAdapter(client, negative, 4));
+        var deadline = Duration.ofSeconds(5);
+        assertThrows(IllegalArgumentException.class, () -> new PartyReadAdapter(client, deadline, 0));
+        assertThrows(IllegalArgumentException.class, () -> new PartyReadAdapter(client, deadline, 201));
     }
 }
