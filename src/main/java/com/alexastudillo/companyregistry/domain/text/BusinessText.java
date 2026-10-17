@@ -11,7 +11,12 @@ public final class BusinessText {
         if (input == null) {
             throw new InvalidText("text-required");
         }
-        return validate(input.strip().toUpperCase(Locale.ROOT), maximumLength);
+        return validate(canonical(input), maximumLength);
+    }
+
+    /** Canonical representation before a boundary evaluates field-specific validation. */
+    public static String canonical(String input) {
+        return input == null ? null : input.strip().toUpperCase(Locale.ROOT);
     }
 
     public static String optional(String input, int maximumLength) {
