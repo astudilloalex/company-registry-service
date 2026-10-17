@@ -2,7 +2,12 @@
 
 ## Foundation status and prerequisites
 
-Java 25, Gradle wrapper 9.7.0, Quarkus 3.40.1, PostgreSQL 18 and Podman. Production and verification native binaries and the non-root UBI 9 image have passed their process checks; see [native evidence and commands](docs/operations/native-verification.md). Business workflows are introduced by later HU. See [architecture decisions](docs/architecture/adr-001-reactive-native-foundation.md), [invariants](docs/architecture/adr-002-company-site-invariants.md), [normalization](docs/architecture/text-normalization.md) and [dependency credentials](docs/architecture/dependencies.md).
+Java 25, Gradle wrapper 9.7.0, Quarkus 3.40.1, PostgreSQL 18 and Podman. Production and verification native binaries and the non-root UBI 9 image have passed their process checks; see [native evidence and commands](docs/operations/native-verification.md). HU01 implements Company registration, durable original-response replay and enriched current retrieval/listing; other business workflows remain in later HU. See [architecture decisions](docs/architecture/adr-001-reactive-native-foundation.md), [invariants](docs/architecture/adr-002-company-site-invariants.md), [normalization](docs/architecture/text-normalization.md) and [dependency credentials](docs/architecture/dependencies.md).
+
+HU01 production startup also requires an external fingerprint keyring and active key ID.
+See [key configuration](#hu01-fingerprint-keys) and the
+[registration/retrieval contract](docs/contracts/company-registration-and-retrieval.md).
+JVM/native HU01 acceptance is recorded separately from the earlier T00 evidence.
 
 ## Local database (Podman)
 
@@ -170,3 +175,30 @@ Use the documented database variables and a reachable Podman database hostname
 when running the image. The [isolated image recipe](docs/operations/native-verification.md#native-oci-image-118)
 records the verified run, ports and cleanup. The image uses UBI 9 Minimal, user
 1001 and the native binary directly, without a JVM or source mounts.
+
+## HU01 fingerprint keys
+
+HU01 requires `COMPANY_IDEMPOTENCY_ACTIVE_KEY_ID` and an external keyring under
+`company-registry.idempotency.keys.<id>`. Supply Base64 secrets representing at
+least 32 random bytes through a protected external configuration file (for
+example `QUARKUS_CONFIG_LOCATIONS=file:/run/secrets/company-keys.properties`).
+There are no production secret defaults. Never commit the file or log its values.
+
+```properties
+# External secret file; replace the placeholder with actual Base64 secret material.
+company-registry.idempotency.keys.K1=<Base64 of at least 32 random bytes>
+```
+
+IDs use 1–64 ASCII letters, digits, underscore or hyphen. The active ID must exist
+in the keyring. All instances must associate each ID with exactly the same secret.
+To rotate, distribute K1 and K2 to every instance first, then select K2 as active.
+New acceptances use K2; historical retries use the policy and key ID on their
+completion record. Retain K1 and its policy for every dependent completion.
+There is no TTL, automatic deletion or re-signing of accepted records. A missing
+historical key or policy is a sanitized server failure, never a content conflict
+or authorization to create again. Each request allocates its own MAC state.
+The test profile has explicitly disposable keys; they are not production defaults.
+
+HU01 JVM, packaged/native-process and non-root image evidence, with the
+AC01–AC13 mapping and reproducible image check, is recorded in
+[HU01 acceptance](docs/operations/hu01-acceptance-review.md).

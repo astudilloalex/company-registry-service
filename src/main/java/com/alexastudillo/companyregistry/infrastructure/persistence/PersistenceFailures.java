@@ -2,23 +2,84 @@ package com.alexastudillo.companyregistry.infrastructure.persistence;
 
 import com.alexastudillo.companyregistry.application.persistence.PersistenceFailure;
 import com.alexastudillo.companyregistry.application.persistence.PersistenceFailure.Kind;
+import com.alexastudillo.companyregistry.application.persistence.PersistenceFailure.Uniqueness;
 import io.vertx.pgclient.PgException;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.PersistenceException;
 import java.net.ConnectException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 import org.hibernate.HibernateException;
-import org.hibernate.StaleStateException;
 import org.hibernate.JDBCException;
+import org.hibernate.StaleStateException;
+import org.hibernate.exception.ConstraintViolationException;
 
 final class PersistenceFailures {
     private PersistenceFailures() {}
     static boolean technical(Throwable failure) {
-        if (failure instanceof PersistenceFailure || failure instanceof java.util.concurrent.CancellationException) return false;
+        if (failure instanceof PersistenceFailure || failure instanceof CancellationException) return false;
         return failure instanceof HibernateException || failure instanceof PersistenceException
                 || failure instanceof PgException || failure instanceof ConnectException || failure instanceof TimeoutException;
     }
     static PersistenceFailure translate(Throwable failure) {
+        PersistenceFailure duplicate = translateDuplicate(failure);
+        if (duplicate != null) {
+            return duplicate;
+        }
+        return translateGeneral(failure);
+    }
+
+    private static PersistenceFailure translateDuplicate(Throwable failure) {
+        String constraint = null;
+        boolean duplicate = false;
+        for (var cause = failure; cause != null; cause = cause.getCause()) {
+            var extracted = extractConstraint(cause);
+            if (extracted != null) {
+                constraint = extracted;
+            }
+            if (isDuplicateState(cause)) {
+                duplicate = true;
+            }
+        }
+        if (!duplicate) {
+            return null;
+        }
+        return createDuplicateFailure(constraint, failure);
+    }
+
+    private static String extractConstraint(Throwable cause) {
+        if (cause instanceof ConstraintViolationException violation && violation.getConstraintName() != null) {
+            return violation.getConstraintName();
+        }
+        if (cause instanceof PgException postgres && postgres.getConstraint() != null) {
+            return postgres.getConstraint();
+        }
+        return null;
+    }
+
+    private static boolean isDuplicateState(Throwable cause) {
+        return "23505".equals(extractSqlState(cause));
+    }
+
+    private static PersistenceFailure createDuplicateFailure(String constraint, Throwable failure) {
+        var uniqueness = resolveUniqueness(constraint);
+        var kind = uniqueness == Uniqueness.OTHER ? Kind.UNEXPECTED : Kind.DUPLICATE;
+        return new PersistenceFailure(kind, uniqueness, failure);
+    }
+
+    private static Uniqueness resolveUniqueness(String constraint) {
+        if (constraint == null) {
+            return Uniqueness.OTHER;
+        }
+        return switch (constraint) {
+            case "uq_companies_tenant_code" -> Uniqueness.COMPANY_CODE;
+            case "uq_companies_tenant_party" -> Uniqueness.COMPANY_PARTY;
+            case "pk_company_idempotency_records" -> Uniqueness.COMPLETION_KEY;
+            default -> Uniqueness.OTHER;
+        };
+    }
+
+    private static PersistenceFailure translateGeneral(Throwable failure) {
         Kind kind = Kind.UNEXPECTED;
         for (var cause = failure; cause != null; cause = cause.getCause()) {
             if (isStaleVersion(cause)) {
@@ -65,6 +126,7 @@ final class PersistenceFailures {
 
     private static Kind classifySqlState(String state) {
         return switch (state) {
+            case "55P03" -> Kind.UNAVAILABLE;
             case "23505" -> Kind.DUPLICATE;
             case "23503", "23001" -> Kind.INVALID_REFERENCE;
             default -> classifySqlStatePrefix(state);

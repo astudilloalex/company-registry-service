@@ -8,7 +8,8 @@ Provider revision inspected:
 `status`, `code=successful`, `data.partyId`, `data.type`, `data.recordStatus`.
 The DTO is `api/model/response/PartyDetailResponse.java`; Party lifecycle values
 are DRAFT/ACTIVE/INACTIVE/ARCHIVED. Types are NATURAL_PERSON/LEGAL_ENTITY.
-Legal details/display names/official identifiers are intentionally not projected.
+The minimal validation port keeps legal details/display names/identifiers out of its projection.
+HU01 separately uses `PartyReads` to compose the safe public read model described below.
 No tenant field is invented in the provider DTO: tenant scope is in the request.
 
 The neutral `PartyReference` distinguishes absence (null), incompatible type
@@ -80,3 +81,33 @@ without broad business-failure recovery or exposing provider messages/causes.
 checks readiness/OpenAPI. The clients perform no bootstrap lookups. See README
 for URL/timeouts; every configured connect/read timeout is validated at startup
 as positive finite milliseconds. Native-process evidence remains section 11.
+
+## HU01 complete public enrichment
+
+The same inspected provider revision's `PartyDetailResponse`,
+`LegalEntityDetailsResponse`, `PartyIdentifierResponse` and
+`PartyIdentifierResource` establish the read contract. Detail supplies identity,
+type, displayName, recordStatus, version and all four audit fields. Legal details
+supply legalName/incorporationCountryCode plus optional tradeName/legalFormCode,
+incorporatedOn/dissolvedOn. `GET /v1/parties/{partyId}/identifiers` supplies a
+shared top-level paginated envelope. Company follows every nextCursor at constant
+limit 200, preserving provider order and all five historical statuses:
+PENDING_VERIFICATION, VERIFIED, REJECTED, EXPIRED, REVOKED. It does not use the
+separate current-identifier projection of the type-specific Party endpoints.
+
+Each safe identifier includes IDs, schemeCode, maskedValue, status, isPrimary,
+version, creation/update dates and optional issuerCode/issuedOn/expiresOn/
+verifiedAt/verifiedBy. No decryption or full identifier endpoint is used. Every
+page receives the same canonical Tenant-Id/Process-Id and exact User-Id. The
+adapter validates ownership, scalar types, HTTP/envelope agreement, pagination
+counts, known states, duplicate IDs and repeated cursors. Confirmed absence is
+separate from unavailable/invalid dependencies. A missing identifier collection
+is never invented as an empty success.
+
+`company-registry.enrichment.deadline` defaults to 30s for the entire operation,
+including queued work and every page; `company-registry.enrichment.concurrency`
+defaults to 4 (range 1–200). Per-client finite connection/read timeouts remain in
+force. Each company's pages are sequential, and list results retain input order.
+Deadline or caller cancellation cancels outstanding reactive HTTP subscriptions.
+No calls occur at bootstrap, no generic HTTP retry is installed and no broker is
+required. Native execution is verified separately from the JVM adapter tests.

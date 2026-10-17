@@ -3,6 +3,7 @@ package com.alexastudillo.companyregistry.api.error;
 import com.alexastudillo.api.response.contract.ApiResponseCode;
 
 public enum CompanyResponseCode implements ApiResponseCode {
+    CREATED("successful", 201),
     BAD_REQUEST("bad-request", 400),
     REFERENCE_NOT_FOUND("reference-not-found", 404),
     INVALID_PROCESS_ID("process-id-invalid", 400),

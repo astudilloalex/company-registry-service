@@ -266,3 +266,21 @@ No event-loop-blocking failure was observed in the reactive persistence, async
 context or provider timeout scenarios. Expected deliberately triggered database
 constraint and sanitized-500 log entries are not public response leaks or failed
 tests. No required native scenario was substituted with a JVM result.
+
+## HU01 productive native update (2026-10-17)
+
+The T00 identities/results above remain historical foundation evidence. HU01's
+new productive binary and image have their own
+[acceptance record](hu01-acceptance-review.md): Mandrel JDK 25, 5 GiB/two threads,
+5m 23s build, actual productive native routes, 201 paged identifiers, typed dates,
+JSONB, original replay after restart/key rotation/provider failure, rollback,
+server timeout and non-root image execution in all three storage modes.
+
+The productive native process command used the same documented flags and
+`quarkusIntTest -x quarkusBuild`; no required HU01 case was substituted with a
+JVM or auxiliary fixture result. Native binary, metadata and XML/logs are
+preserved separately under `/tmp/company-hu01-evidence/native/`. The image tag is
+`company-registry-service:hu01-native`. Run
+`python3 docs/operations/verify-hu01-native-image.py` from the repository root to
+repeat the isolated image checks after building that tag. It creates its own
+PostgreSQL/provider/keys and removes its test containers afterward.

@@ -9,11 +9,50 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class ReactiveCompanyRepository implements CompanyRepository, PanacheRepositoryBase<CompanyEntity, UUID> {
-    @Override public Uni<CompanyRecord> find(UUID tenantId, UUID companyId) {
+    @Override
+    public Uni<java.util.List<CompanyRecord>> page(UUID tenantId,
+            com.alexastudillo.companyregistry.application.company.CompanySelection.Filters filters,
+            com.alexastudillo.companyregistry.application.company.CompanySelection.Boundary boundary, int limit) {
+        if (limit < 1 || limit > 200)
+            throw new IllegalArgumentException("limit-invalid");
+        var query = new StringBuilder("tenantId = :tenant");
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put("tenant", tenantId);
+        if (filters.code() != null) {
+            query.append(" and code = :code");
+            parameters.put("code", filters.code());
+        }
+        if (filters.partyId() != null) {
+            query.append(" and partyId = :party");
+            parameters.put("party", filters.partyId());
+        }
+        if (filters.status() != null) {
+            query.append(" and status = :status");
+            parameters.put("status", filters.status());
+        }
+        if (boundary != null) {
+            query.append(" and (createdAt < :created or (createdAt = :created and id < :id))");
+            parameters.put("created", boundary.createdAt());
+            parameters.put("id", boundary.id());
+        }
+        query.append(" order by createdAt desc, id desc");
+        return find(query.toString(), parameters).range(0, limit).list()
+                .map(rows -> rows.stream().map(CompanyEntity::value).toList());
+    }
+
+    @Override
+    public Uni<Boolean> occupied(UUID tenantId, String code, UUID partyId) {
+        return count("tenantId = ?1 and (code = ?2 or partyId = ?3)", tenantId, code, partyId).map(count -> count > 0);
+    }
+
+    @Override
+    public Uni<CompanyRecord> find(UUID tenantId, UUID companyId) {
         return find("tenantId = ?1 and id = ?2", tenantId, companyId).firstResult()
                 .map(row -> row == null ? null : row.value());
     }
-    @Override public Uni<CompanyRecord> insert(CompanyRecord company) {
+
+    @Override
+    public Uni<CompanyRecord> insert(CompanyRecord company) {
         var row = CompanyEntity.from(company);
         return persistAndFlush(row).map(CompanyEntity::value);
     }

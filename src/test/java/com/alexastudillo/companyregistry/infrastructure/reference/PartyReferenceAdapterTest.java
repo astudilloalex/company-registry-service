@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class PartyReferenceAdapterTest {
     @Inject PartyReferences parties;
     @Test void tenantContextProjectionAbsenceTypeAndStateAreDistinct() {
-        var context = new OperationContext(UUID.randomUUID(), "Actor-aB", UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT));
+        var context = new OperationContext(UUID.randomUUID(), "Actor-aB", UUID.randomUUID().toString());
         var id = UUID.randomUUID(); var path = "/v1/parties/" + id; var stub = ReferenceStubResource.stub; stub.reset();
         for (var state : PartyState.values()) {
             stub.reply(path, 200, body(id, "LEGAL_ENTITY", state.name()));

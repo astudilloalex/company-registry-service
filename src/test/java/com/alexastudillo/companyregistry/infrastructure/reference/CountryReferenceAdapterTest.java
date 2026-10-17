@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class CountryReferenceAdapterTest {
     @Inject CountryReferences countries;
     @Test void exactCodeStateAndSupportedHeadersAreValidated() {
-        var context = new OperationContext(UUID.randomUUID(), "Actor-aB", UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT));
+        var context = new OperationContext(UUID.randomUUID(), "Actor-aB", UUID.randomUUID().toString());
         var id = UUID.randomUUID(); var stub = ReferenceStubResource.stub; stub.reset();
         for (var state : GeographicState.values()) {
             stub.reply("/api/v1/countries/by-alpha2/EC", 200, body(id, "EC", state.name()));

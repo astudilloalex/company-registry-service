@@ -36,7 +36,9 @@ public class PostgresResource implements QuarkusTestResourceLifecycleManager {
                 "quarkus.datasource.jdbc.url", postgres.getJdbcUrl(),
                 "quarkus.datasource.reactive.url", postgres.getJdbcUrl().substring("jdbc:".length()),
                 "quarkus.flyway.username", "company_registry_migration",
-                "quarkus.flyway.password", "migration_test");
+                "quarkus.flyway.password", "migration_test",
+                "test.database.admin-user", postgres.getUsername(),
+                "test.database.admin-password", postgres.getPassword());
     }
 
     @Override

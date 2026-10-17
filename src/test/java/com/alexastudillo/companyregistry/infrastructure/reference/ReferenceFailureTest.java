@@ -52,6 +52,8 @@ class ReferenceFailureTest {
         try {
             var adapter = new PartyReferenceAdapter(client);
             failure(adapter.find(new OperationContext(UUID.randomUUID(), "Actor-aB", UUID.randomUUID().toString()), UUID.randomUUID()), ReferenceFailure.Kind.UNAVAILABLE);
+            var enriched = new PartyReadAdapter(client, Duration.ofSeconds(2), 4);
+            failure(enriched.find(new OperationContext(UUID.randomUUID(), "Actor-aB", UUID.randomUUID().toString()), UUID.randomUUID()), ReferenceFailure.Kind.UNAVAILABLE);
         } finally { ((AutoCloseable) client).close(); }
     }
 }

@@ -17,8 +17,12 @@ import org.junit.jupiter.api.Test;
 class SchemaCatalogIntegrityTest extends SqlIntegritySupport {
     @Test
     void everyDeclaredConstraintIndexAndTriggerIsInstalledAndEnabled() throws Exception {
-        var source = Files.readString(Path.of("src/main/resources/db/migration/V1__create_company_registry_schema.sql"));
-        var constraints = names(source, "(?m)^    CONSTRAINT (\\w+)");
+        var migrations=new StringBuilder();
+        try(var files=Files.list(Path.of("src/main/resources/db/migration"))) {
+            for(var file:files.filter(p->p.getFileName().toString().matches("V\\d+__.*\\.sql")).sorted().toList()) migrations.append(Files.readString(file)).append('\n');
+        }
+        var source=migrations.toString();
+        var constraints = names(source, "(?m)(?:^    CONSTRAINT|ADD CONSTRAINT) (\\w+)");
         assertEquals(constraints, rows("SELECT c.conname FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace "
                 + "WHERE n.nspname='public' AND c.contype IN ('p','u','f','c') "
                 + "AND c.conrelid IN (SELECT oid FROM pg_class WHERE relname LIKE 'compan%')"));

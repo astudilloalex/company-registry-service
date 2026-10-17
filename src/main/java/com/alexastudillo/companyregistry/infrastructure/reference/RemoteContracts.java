@@ -27,7 +27,7 @@ final class RemoteContracts {
     static boolean clientFailure(Throwable failure) {
         if (failure instanceof ReferenceFailure || failure instanceof java.util.concurrent.CancellationException) return false;
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof ProcessingException || cause instanceof jakarta.ws.rs.WebApplicationException
+            if (cause instanceof JsonProcessingException || cause instanceof ProcessingException || cause instanceof jakarta.ws.rs.WebApplicationException
                     || cause instanceof java.net.ConnectException || cause instanceof java.net.SocketTimeoutException
                     || cause instanceof java.util.concurrent.TimeoutException || cause instanceof io.netty.handler.timeout.TimeoutException) return true;
         }

@@ -1,8 +1,11 @@
 # Planned business operations and shared conventions
 
-The source [OpenAPI](company-registry.openapi.yaml) has no commercial paths in
-T00. Its components are reserved contracts, not evidence of implemented routes.
-This inventory links future behavior to the actual issue titles:
+The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01 operations:
+`POST /v1/companies`, `GET /v1/companies/{companyId}` and `GET /v1/companies`.
+The [HU01 acceptance record](../operations/hu01-acceptance-review.md) records
+executed JVM, native and image verification; contract publication alone is not evidence. All require exactly one
+Tenant-Id and Process-Id as lowercase canonical UUIDs, plus an exact User-Id.
+The inventory links other planned behavior to the actual issue titles:
 
 | HU / issue | Planned behavior | Mutation conventions |
 | --- | --- | --- |
@@ -17,7 +20,7 @@ This inventory links future behavior to the actual issue titles:
 ## Idempotency
 
 Exactly one nonblank opaque `Idempotency-Key`, max 128 characters, preserved
-exactly. It is mandatory for future Company registration. Other mutation
+exactly. It is mandatory for Company registration and replay. Other mutation
 contracts specify whether it applies; T00 does not silently require it on reads.
 The completion key is `(tenant, operation, key)`. Use the canonical effective
 input, including field-specific normalization and opaque-value preservation, for

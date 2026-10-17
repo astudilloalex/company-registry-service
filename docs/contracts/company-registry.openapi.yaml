@@ -2,193 +2,789 @@ openapi: 3.1.0
 info:
   title: Company Registry Service
   version: 1.0.0
-  description: >-
-    T00 foundation contract. No commercial workflow is available yet (paths is empty).
-    Components reserve common API representations and conventions for HU01-HU07;
-    they do not advertise implemented Company/Site endpoints. Verification fixtures
-    are excluded from production and this document. Health/OpenAPI retain native
-    management contracts without business headers.
-paths: {}
+  description: HU01 Company registration, durable replay and current enriched retrieval. All business routes require
+    canonical lowercase UUID context. Health and OpenAPI retain management contracts without business headers. Verification
+    routes are excluded.
+paths:
+  /v1/companies:
+    post:
+      operationId: registerCompany
+      summary: Register Company or replay the original acceptance
+      description: Only tenant-scoped LEGAL_ENTITY Party in DRAFT/ACTIVE/INACTIVE can create a DRAFT/version 0 Company.
+        Company, completion and enabled outbox commit atomically. Replay does not consult providers. No If-Match
+        required.
+      parameters:
+      - &id001
+        $ref: '#/components/parameters/TenantId'
+      - &id002
+        $ref: '#/components/parameters/UserId'
+      - &id003
+        $ref: '#/components/parameters/ProcessId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompanyRequest'
+            example:
+              partyId: 018f1234-5678-7000-8000-000000000004
+              code: acme
+              operatingName: Compañía Ágil
+              logoUrl: https://example.com/LogoAcme.png
+      responses:
+        '201':
+          description: Accepted original snapshot.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyEnvelope'
+              examples:
+                CompanySuccess:
+                  $ref: '#/components/examples/CompanySuccess'
+        '400': &id004
+          $ref: '#/components/responses/BadRequest'
+        '500': &id005
+          $ref: '#/components/responses/ServerError'
+        '502': &id006
+          $ref: '#/components/responses/DependencyInvalid'
+        '503': &id007
+          $ref: '#/components/responses/DependencyUnavailable'
+        '404':
+          $ref: '#/components/responses/ReferenceNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      operationId: listCompanies
+      summary: List current Companies within the tenant
+      description: Exact filters combine with AND. Unknown, repeated, blank or invalid parameters are rejected.
+        Empty lists perform no Party calls. Identifiers include the complete historical collection of all provider
+        states. Reads require no mutation headers.
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      - name: code
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+        description: Exact canonical business code.
+      - name: partyId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          - ARCHIVED
+      responses:
+        '200':
+          description: Current fully enriched representation. No partial response.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyCollectionEnvelope'
+              examples:
+                EmptyCollection:
+                  $ref: '#/components/examples/EmptyCollection'
+                CompanyCollection:
+                  $ref: '#/components/examples/CompanyCollection'
+        '400': *id004
+        '500': *id005
+        '502': *id006
+        '503': *id007
+  /v1/companies/{companyId}:
+    get:
+      operationId: getCompany
+      summary: Get current Company within the tenant
+      parameters:
+      - *id001
+      - *id002
+      - *id003
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Current fully enriched representation. No partial response.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyEnvelope'
+              examples:
+                CompanyRead:
+                  $ref: '#/components/examples/CompanyRead'
+        '400': *id004
+        '500': *id005
+        '502': *id006
+        '503': *id007
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   parameters:
     TenantId:
       name: Tenant-Id
       in: header
       required: true
-      description: Exactly one canonical UUID. Trusted caller context, not an authorization decision.
-      schema: {type: string, format: uuid}
+      description: Exactly one canonical UUID. Trusted caller context, not an authorization decision. UUID hexadecimal
+        letters must be lowercase; uppercase, whitespace and abbreviated forms are rejected without normalization.
+      schema:
+        type: string
+        format: uuid
+        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
       example: 018f1234-5678-7000-8000-000000000001
     UserId:
       name: User-Id
       in: header
       required: true
       description: Exactly one nonblank actor, at most 128 code points, without control characters; preserved unchanged.
-      schema: {type: string, minLength: 1, maxLength: 128}
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
       example: Actor-aB
     ProcessId:
       name: Process-Id
       in: header
       required: true
-      description: Exactly one canonical UUID, validated first and preserved exactly in downstream context and responses, including subsequent failures.
-      schema: {type: string, format: uuid}
+      description: Exactly one canonical UUID, validated first and preserved exactly in downstream context and responses,
+        including subsequent failures. UUID hexadecimal letters must be lowercase; uppercase, whitespace and abbreviated
+        forms are rejected without normalization.
+      schema:
+        type: string
+        format: uuid
+        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
       example: 018f1234-5678-7000-8000-000000000002
     IdempotencyKey:
       name: Idempotency-Key
       in: header
       required: true
-      description: >-
-        Future Company registration requires exactly one nonblank opaque key, max 128 characters,
-        preserved exactly. Other mutation operations declare applicability individually.
-        Canonical effective input is fingerprinted with configured HMAC SHA-256.
-        Replay returns the original accepted snapshot, not current state, without incrementing
-        versions. Reuse with different effective input returns 409. No workflow is implemented in T00.
-      schema: {type: string, minLength: 1, maxLength: 128}
+      description: Exactly one nonblank opaque key of at most 128 code points, preserved exactly. Required for registration
+        and replay. Tenant/operation/key identifies an acceptance. Equivalent canonical input replays the original
+        enriched 201 snapshot without provider access or writes. Different effective input returns 409. Fingerprints
+        use the stored policy and historical HMAC key.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
       example: Key-aB
     ExpectedVersion:
       name: If-Match
       in: header
       required: true
-      description: >-
-        Internal Party-compatible decimal expected aggregate version, not an HTTP entity-tag.
-        Canonical nonnegative int64 decimal, no quotes/wildcard/leading zeros. Company mutations
-        use Company.version; Site/Address/Contact mutations use Site.version.
-        Missing/invalid is 400; stale is 412. Read operations do not require mutation headers.
-      schema: {type: string, pattern: '^(0|[1-9][0-9]*)$', maxLength: 19}
+      description: Internal Party-compatible decimal expected aggregate version, not an HTTP entity-tag. Canonical
+        nonnegative int64 decimal, no quotes/wildcard/leading zeros. Company mutations use Company.version; Site/Address/Contact
+        mutations use Site.version. Missing/invalid is 400; stale is 412. Read operations do not require mutation
+        headers.
+      schema:
+        type: string
+        pattern: ^(0|[1-9][0-9]*)$
+        maxLength: 19
       example: '0'
     Cursor:
       name: cursor
       in: query
       required: false
-      description: >-
-        Opaque cursor bound to tenant, exact filters and order. Invalid/incompatible is 400.
-        Order is created_at DESC, id DESC; no frozen snapshot across concurrent requests.
-        Unknown or repeated query parameters are rejected. Planned for HU01/HU04.
-      schema: {type: string, minLength: 1}
+      description: Authenticated versioned cursor bound to tenant, effective exact filters and created_at DESC,
+        id DESC order. Invalid/incompatible cursors and unknown/repeated query parameters are 400. Forward navigation;
+        no frozen snapshot. Limit may change between pages.
+      schema:
+        type: string
+        minLength: 1
     Limit:
       name: limit
       in: query
       required: false
-      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
   headers:
     ProcessId:
       description: Exactly the validated request Process-Id. Omitted when that input is missing/invalid.
-      schema: {type: string, format: uuid}
+      schema:
+        type: string
+        format: uuid
+        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
   schemas:
     ApiErrorDetail:
       type: object
-      required: [code]
+      required:
+      - code
       properties:
-        field: {type: string, description: Stable public input-field path when applicable.}
-        code: {type: string, description: Stable machine-readable field rule.}
+        field:
+          type: string
+          description: Stable public input-field path when applicable.
+        code:
+          type: string
+          description: Stable machine-readable field rule.
       additionalProperties: false
     ErrorResponse:
       type: object
-      required: [status, code]
+      required:
+      - status
+      - code
       properties:
-        status: {type: integer, minimum: 400, maximum: 599}
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
         code:
           type: string
-          description: >-
-            Service-owned codes: bad-request, process-id-invalid, tenant-id-invalid, user-id-invalid,
-            reference-invalid, data-invalid, resource-conflict, aggregate-version-mismatch,
-            dependency-unavailable, dependency-response-invalid. Shared framework codes include validation-error, not-found,
-            method-not-allowed, unsupported-media-type and sanitized server-error.
+          description: 'Service-owned codes: bad-request, process-id-invalid, tenant-id-invalid, user-id-invalid,
+            reference-invalid, data-invalid, resource-conflict, aggregate-version-mismatch, dependency-unavailable,
+            dependency-response-invalid. Shared framework codes include validation-error, not-found, method-not-allowed,
+            unsupported-media-type and sanitized server-error.'
         errors:
           type: array
-          items: {$ref: '#/components/schemas/ApiErrorDetail'}
+          items:
+            $ref: '#/components/schemas/ApiErrorDetail'
       additionalProperties: false
     CompanyResponse:
-      description: Reserved public Company representation for future HU endpoints; never a Domain/ORM entity.
+      description: Uniform operational Company with current public Party enrichment on GET and the original accepted
+        enrichment on replay.
       type: object
-      required: [companyId, partyId, code, operatingName, status, version, createdAt, updatedAt]
+      required:
+      - companyId
+      - partyId
+      - code
+      - operatingName
+      - status
+      - version
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      - party
       properties:
-        companyId: {type: string, format: uuid}
-        partyId: {type: string, format: uuid, description: Opaque Party identity; authoritative legal details remain external.}
-        code: {type: string, minLength: 1, maxLength: 64}
-        operatingName: {type: string, minLength: 1, maxLength: 200}
-        description: {type: string, minLength: 1, maxLength: 500}
-        logoUrl: {type: string, maxLength: 1000, description: Case-sensitive opaque URL.}
-        status: {type: string, enum: [DRAFT, ACTIVE, INACTIVE, ARCHIVED]}
-        version: {type: integer, format: int64, minimum: 0}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
+        companyId:
+          type: string
+          format: uuid
+        partyId:
+          type: string
+          format: uuid
+          description: Opaque Party identity; authoritative legal details remain external.
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        operatingName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+        logoUrl:
+          type: string
+          maxLength: 1000
+          description: Case-sensitive opaque URL.
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          - ARCHIVED
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          minLength: 1
+          maxLength: 128
+        updatedBy:
+          type: string
+          minLength: 1
+          maxLength: 128
+        party:
+          $ref: '#/components/schemas/PartyResponse'
       additionalProperties: false
     CompanyEnvelope:
       type: object
-      required: [status, code, data]
+      required:
+      - status
+      - code
+      - data
       properties:
-        status: {type: integer, enum: [200, 201]}
-        code: {type: string, const: successful}
-        data: {$ref: '#/components/schemas/CompanyResponse'}
+        status:
+          type: integer
+          enum:
+          - 200
+          - 201
+        code:
+          type: string
+          const: successful
+        data:
+          $ref: '#/components/schemas/CompanyResponse'
       additionalProperties: false
     CompanyCollectionEnvelope:
-      description: >-
-        Shared pagination metadata is top-level, not nested. Null metadata fields are omitted.
-        Company filters are exact code, partyId and status; cursor is bound to filters/tenant/order.
+      description: Shared pagination metadata is top-level, not nested. Null metadata fields are omitted. Company
+        filters are exact code, partyId and status; cursor is bound to filters/tenant/order.
       type: object
-      required: [status, code, data]
+      required:
+      - status
+      - code
+      - data
+      - numberOfElements
       properties:
-        status: {type: integer, const: 200}
-        code: {type: string, const: successful}
+        status:
+          type: integer
+          const: 200
+        code:
+          type: string
+          const: successful
         data:
           type: array
-          items: {$ref: '#/components/schemas/CompanyResponse'}
-        nextCursor: {type: string}
-        prevCursor: {type: string}
-        totalElements: {type: integer, format: int32, minimum: 0}
-        totalPages: {type: integer, format: int32, minimum: 0}
-        numberOfElements: {type: integer, format: int32, minimum: 0}
+          items:
+            $ref: '#/components/schemas/CompanyResponse'
+        nextCursor:
+          type: string
+        prevCursor:
+          type: string
+        totalElements:
+          type: integer
+          format: int32
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int32
+          minimum: 0
+        numberOfElements:
+          type: integer
+          format: int32
+          minimum: 0
+      additionalProperties: false
+    CreateCompanyRequest:
+      type: object
+      required:
+      - partyId
+      - code
+      - operatingName
+      properties:
+        partyId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        operatingName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 500
+        logoUrl:
+          type:
+          - string
+          - 'null'
+          format: uri
+          maxLength: 1000
+      additionalProperties: false
+      description: Text is stripped and uppercased with Locale.ROOT before code point length checks, preserving
+        internal spaces and accents. Supplied blank description is invalid. Omitted/null optionals are equivalent.
+        logoUrl is absolute HTTP/HTTPS, has no outer whitespace and preserves case. UUID references need not be
+        UUIDv7. Generated or unknown fields are rejected.
+    LegalEntityResponse:
+      type: object
+      required:
+      - legalName
+      - incorporationCountryCode
+      properties:
+        legalName:
+          type: string
+        tradeName:
+          type: string
+        legalFormCode:
+          type: string
+        incorporationCountryCode:
+          type: string
+        incorporatedOn:
+          type: string
+          format: date
+        dissolvedOn:
+          type: string
+          format: date
+      additionalProperties: false
+    PartyIdentifierResponse:
+      type: object
+      required:
+      - identifierId
+      - partyId
+      - identifierSchemeId
+      - schemeCode
+      - maskedValue
+      - status
+      - isPrimary
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        identifierId:
+          type: string
+          format: uuid
+        partyId:
+          type: string
+          format: uuid
+        identifierSchemeId:
+          type: string
+          format: uuid
+        schemeCode:
+          type: string
+        maskedValue:
+          type: string
+        issuerCode:
+          type: string
+        verifiedBy:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING_VERIFICATION
+          - VERIFIED
+          - REJECTED
+          - EXPIRED
+          - REVOKED
+        isPrimary:
+          type: boolean
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        issuedOn:
+          type: string
+          format: date
+        expiresOn:
+          type: string
+          format: date
+        verifiedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    PartyResponse:
+      type: object
+      required:
+      - partyId
+      - type
+      - displayName
+      - recordStatus
+      - version
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      - legalEntityDetails
+      - identifiers
+      properties:
+        partyId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+          - LEGAL_ENTITY
+        displayName:
+          type: string
+        recordStatus:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          - ARCHIVED
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedBy:
+          type: string
+        legalEntityDetails:
+          $ref: '#/components/schemas/LegalEntityResponse'
+        identifiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartyIdentifierResponse'
       additionalProperties: false
   examples:
     CompanySuccess:
-      summary: Planned Company response, not an implemented operation.
+      summary: Original enriched accepted Company, including masked identifiers.
+      value:
+        status: 201
+        code: successful
+        data:
+          companyId: 0199e000-0000-7000-8000-000000000001
+          partyId: 018f1234-5678-7000-8000-000000000004
+          code: ACME
+          operatingName: COMPAÑÍA ÁGIL
+          description: OPERACIONES COMERCIALES EN ECUADOR
+          logoUrl: https://example.com/LogoAcme.png
+          status: DRAFT
+          version: 0
+          createdAt: '2026-10-17T14:30:00.123456Z'
+          createdBy: Actor-aB
+          updatedAt: '2026-10-17T14:30:00.123456Z'
+          updatedBy: Actor-aB
+          party:
+            partyId: 018f1234-5678-7000-8000-000000000004
+            type: LEGAL_ENTITY
+            displayName: COMPAÑÍA ÁGIL
+            recordStatus: ACTIVE
+            version: 2
+            createdAt: '2026-10-10T10:00:00.000000Z'
+            updatedAt: '2026-10-15T12:00:00.000000Z'
+            createdBy: Actor-original
+            updatedBy: Actor-aB
+            legalEntityDetails:
+              legalName: COMPAÑÍA ÁGIL S.A.S.
+              tradeName: COMPAÑÍA ÁGIL
+              legalFormCode: SAS
+              incorporationCountryCode: EC
+              incorporatedOn: '2020-01-15'
+            identifiers:
+            - identifierId: 0199e000-0000-7000-8000-000000000002
+              partyId: 018f1234-5678-7000-8000-000000000004
+              identifierSchemeId: 0199e000-0000-7000-8000-000000000003
+              schemeCode: EC_RUC
+              maskedValue: '*********0001'
+              status: VERIFIED
+              isPrimary: true
+              issuerCode: SRI
+              issuedOn: '2020-01-15'
+              verifiedAt: '2026-10-12T09:00:00.000000Z'
+              verifiedBy: Actor-verificador
+              version: 1
+              createdAt: '2026-10-10T10:05:00.000000Z'
+              updatedAt: '2026-10-12T09:00:00.000000Z'
+    EmptyCollection:
+      value:
+        status: 200
+        code: successful
+        data: []
+        numberOfElements: 0
+    ValidationFailure:
+      value:
+        status: 400
+        code: validation-error
+        errors:
+        - field: name
+          code: name-required
+    UnknownProperty:
+      value:
+        status: 400
+        code: bad-request
+    NotFound:
+      value:
+        status: 404
+        code: not-found
+    MethodNotAllowed:
+      value:
+        status: 405
+        code: method-not-allowed
+    UnsupportedMedia:
+      value:
+        status: 415
+        code: unsupported-media-type
+    Conflict:
+      value:
+        status: 409
+        code: resource-conflict
+    StaleVersion:
+      value:
+        status: 412
+        code: aggregate-version-mismatch
+    UnexpectedFailure:
+      value:
+        status: 500
+        code: server-error
+    CompanyRead:
+      value:
+        status: 200
+        code: successful
+        data: &id008
+          companyId: 0199e000-0000-7000-8000-000000000001
+          partyId: 018f1234-5678-7000-8000-000000000004
+          code: ACME
+          operatingName: COMPAÑÍA ÁGIL
+          description: OPERACIONES COMERCIALES EN ECUADOR
+          logoUrl: https://example.com/LogoAcme.png
+          status: DRAFT
+          version: 0
+          createdAt: '2026-10-17T14:30:00.123456Z'
+          createdBy: Actor-aB
+          updatedAt: '2026-10-17T14:30:00.123456Z'
+          updatedBy: Actor-aB
+          party:
+            partyId: 018f1234-5678-7000-8000-000000000004
+            type: LEGAL_ENTITY
+            displayName: COMPAÑÍA ÁGIL
+            recordStatus: ACTIVE
+            version: 2
+            createdAt: '2026-10-10T10:00:00.000000Z'
+            updatedAt: '2026-10-15T12:00:00.000000Z'
+            createdBy: Actor-original
+            updatedBy: Actor-aB
+            legalEntityDetails:
+              legalName: COMPAÑÍA ÁGIL S.A.S.
+              tradeName: COMPAÑÍA ÁGIL
+              legalFormCode: SAS
+              incorporationCountryCode: EC
+              incorporatedOn: '2020-01-15'
+            identifiers:
+            - identifierId: 0199e000-0000-7000-8000-000000000002
+              partyId: 018f1234-5678-7000-8000-000000000004
+              identifierSchemeId: 0199e000-0000-7000-8000-000000000003
+              schemeCode: EC_RUC
+              maskedValue: '*********0001'
+              status: VERIFIED
+              isPrimary: true
+              issuerCode: SRI
+              issuedOn: '2020-01-15'
+              verifiedAt: '2026-10-12T09:00:00.000000Z'
+              verifiedBy: Actor-verificador
+              version: 1
+              createdAt: '2026-10-10T10:05:00.000000Z'
+              updatedAt: '2026-10-12T09:00:00.000000Z'
+    CompanyCollection:
       value:
         status: 200
         code: successful
         data:
-          companyId: 018f1234-5678-7000-8000-000000000003
-          partyId: 018f1234-5678-7000-8000-000000000004
-          code: COMPANY
-          operatingName: COMPAÑÍA ÁGIL
-          status: DRAFT
-          version: 0
-          createdAt: '2026-10-15T12:30:45.123456Z'
-          updatedAt: '2026-10-15T12:30:45.123456Z'
-    EmptyCollection:
-      value: {status: 200, code: successful, data: [], numberOfElements: 0}
-    ValidationFailure:
-      value: {status: 400, code: validation-error, errors: [{field: name, code: name-required}]}
-    UnknownProperty:
-      value: {status: 400, code: bad-request}
-    NotFound:
-      value: {status: 404, code: not-found}
-    MethodNotAllowed:
-      value: {status: 405, code: method-not-allowed}
-    UnsupportedMedia:
-      value: {status: 415, code: unsupported-media-type}
-    Conflict:
-      value: {status: 409, code: resource-conflict}
-    StaleVersion:
-      value: {status: 412, code: aggregate-version-mismatch}
-    UnexpectedFailure:
-      value: {status: 500, code: server-error}
+        - *id008
+        numberOfElements: 1
   responses:
     BadRequest:
       description: Invalid business input/context; status equals HTTP status. No internal messages.
       headers:
-        Process-Id: {$ref: '#/components/headers/ProcessId'}
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
-            unknownProperty: {$ref: '#/components/examples/UnknownProperty'}
-            validation: {$ref: '#/components/examples/ValidationFailure'}
+            unknownProperty:
+              $ref: '#/components/examples/UnknownProperty'
+            validation:
+              $ref: '#/components/examples/ValidationFailure'
     ServerError:
       description: Sanitized unexpected failure without messages, stack traces, SQL or provider payloads.
       headers:
-        Process-Id: {$ref: '#/components/headers/ProcessId'}
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ErrorResponse'}
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
-            unexpected: {$ref: '#/components/examples/UnexpectedFailure'}
+            unexpected:
+              $ref: '#/components/examples/UnexpectedFailure'
+    NotFound:
+      description: Company absent in this tenant; identical for foreign IDs.
+      headers:
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: 404
+            code: not-found
+    ReferenceNotFound:
+      description: Party absent in this tenant on new registration.
+      headers:
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: 404
+            code: reference-not-found
+    Conflict:
+      description: Code/Party occupied or accepted key with different effective input.
+      headers:
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: 409
+            code: resource-conflict
+    DependencyInvalid:
+      description: Invalid upstream contract or persisted Party no longer resolvable.
+      headers:
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: 502
+            code: dependency-response-invalid
+    DependencyUnavailable:
+      description: Provider unavailable, deadline exceeded or commit outcome still uncertain; retry the same key/input.
+      headers:
+        Process-Id:
+          $ref: '#/components/headers/ProcessId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: 503
+            code: dependency-unavailable

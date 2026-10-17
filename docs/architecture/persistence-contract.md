@@ -54,3 +54,18 @@ failures. `ArchitectureTest` passes with the real Application port signatures.
 Hibernate Reactive reports SQLSTATE through Hibernate's `JDBCException`
 abstraction in some failures; inspecting it performs no JDBC operation.
 Native verification remains separately tracked in section 11.
+
+## HU01 completion provenance (V2)
+
+`RegistryData.CompletionRecord` and `CompletionEntity` carry nullable
+`fingerprintVersion`/`fingerprintKeyId`. The compatibility constructor preserves
+null provenance for historical technical namespaces. Every `company.create.v1`
+acceptance supplies both explicitly; SQL enforces a positive version, bounded
+nonblank key ID and creation outcome shape. The key ID references externally
+managed material and is not a secret. Never infer it from the current active key.
+
+The result JSONB document preserves the complete accepted public Company/Party
+projection, masked identifiers, boolean/version types, ISO Instant/LocalDate,
+opaque URLs/actors and explicit internal nulls. It remains separate from HTTP
+null omission. No legal columns or mirror tables are introduced. V2 preserves
+V1 and its checksum, existing snapshots and composite ownership references.

@@ -88,3 +88,21 @@ these JVM tests.
   passed. The real packaged production application JAR contains
   `META-INF/openapi.yaml` and no `api/verification` classes. This is JVM packaging
   evidence only; native exclusion/execution remain tracked in section 11.
+
+## HU01 production routes
+
+HU01 extends the historical T00 fixture checks with the productive
+`CompanyResource`: POST /v1/companies, GET /v1/companies/{companyId} and
+GET /v1/companies. The shared OpenAPI assertion now requires exactly these
+business paths and still excludes auxiliary verification routes. The architecture
+guard forbids this service's Infrastructure from API, while allowing the required
+shared ResponseManager adapter. Resource signatures require typed ApiResponse
+payloads, including List<CompanyResponse> for collections.
+
+Tenant/Process UUID headers now reject uppercase hexadecimal representations;
+accepted values are echoed/propagated unchanged. Negative GET/POST/replay header
+checks and concurrent async context tests cover the boundary. Detailed behavior,
+errors and current-versus-original replay semantics are in the
+[HU01 HTTP contract](../contracts/company-registration-and-retrieval.md), with
+executed JVM/process/native evidence tracked separately in the
+[HU01 acceptance record](../operations/hu01-acceptance-review.md).

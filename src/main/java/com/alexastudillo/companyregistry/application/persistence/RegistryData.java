@@ -26,7 +26,16 @@ public final class RegistryData {
     /** Accepted result metadata; the numeric status is opaque persisted outcome metadata, not an HTTP API type. */
     public record CompletionRecord(CompletionKey key, String requestHash, UUID companyId, UUID siteId,
                                    Long expectedVersion, short resultStatus, short snapshotVersion,
-                                   Map<String, Object> snapshot, Instant createdAt, String createdBy) {}
+                                   Map<String, Object> snapshot, Instant createdAt, String createdBy,
+                                   Short fingerprintVersion, String fingerprintKeyId) {
+        /** Compatibility for historical technical namespaces; HU01 supplies explicit provenance. */
+        public CompletionRecord(CompletionKey key, String requestHash, UUID companyId, UUID siteId,
+                                Long expectedVersion, short resultStatus, short snapshotVersion,
+                                Map<String, Object> snapshot, Instant createdAt, String createdBy) {
+            this(key, requestHash, companyId, siteId, expectedVersion, resultStatus, snapshotVersion,
+                    snapshot, createdAt, createdBy, null, null);
+        }
+    }
     public record OutboxRecord(UUID id, UUID tenantId, AggregateType aggregateType, UUID aggregateId,
                                long aggregateVersion, String eventType, short schemaVersion,
                                Map<String, Object> payload, Instant occurredAt, String correlationId,

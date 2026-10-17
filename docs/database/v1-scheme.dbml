@@ -145,6 +145,8 @@ Table company_idempotency_records {
   operation varchar(64) [not null]
   idempotency_key varchar(128) [not null]
   request_hash char(64) [not null, note: 'Lowercase hexadecimal HMAC fingerprint.']
+  fingerprint_version smallint [note: 'V2: positive policy version; required for company.create.v1; historical technical namespaces may omit both metadata fields.']
+  fingerprint_key_id varchar(64) [note: 'V2: external key identity; ASCII letters/digits/underscore/hyphen; required together with fingerprint_version. Never secret material.']
   company_id uuid [not null]
   site_id uuid
   expected_aggregate_version bigint
