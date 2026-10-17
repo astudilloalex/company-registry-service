@@ -37,7 +37,11 @@ class SchemaDocumentationTest {
     }
 
     private static String migration() throws Exception {
-        return Files.readString(Path.of("src/main/resources/db/migration/V1__create_company_registry_schema.sql"));
+        var source=new StringBuilder();
+        try(var files=Files.list(Path.of("src/main/resources/db/migration"))) {
+            for(var file:files.filter(p->p.getFileName().toString().matches("V\\d+__.*\\.sql")).sorted().toList()) source.append(Files.readString(file)).append('\n');
+        }
+        return source.toString();
     }
 
     private static Set<String> names(String text, String expression) {
