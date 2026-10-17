@@ -20,4 +20,16 @@ public class CompanyOperations {
             @org.eclipse.microprofile.config.inject.ConfigProperty(name="company-registry.registration.wait-budget",defaultValue="10s") java.time.Duration waitBudget) {
         return new RegisterCompany(storage, idempotency, parties, ids, clock, waitBudget);
     }
+    @Produces public UpdateCompany.Storage storage(AtomicOperation atomic, CompanyRepository companies, UpdateEvents events) {
+        return new UpdateCompany.Storage(atomic, companies, events);
+    }
+    @Produces public UpdateCompany.Idempotency idempotency(CompletionRepository completions, UpdateFingerprints fingerprints, UpdateResults results) {
+        return new UpdateCompany.Idempotency(completions, fingerprints, results);
+    }
+    @Produces public UpdateCompany updates(UpdateCompany.Storage storage, UpdateCompany.Idempotency idempotency,
+            Identifiers ids, Clock clock,
+            @org.eclipse.microprofile.config.inject.ConfigProperty(name="company-registry.update.wait-budget",defaultValue="10s") java.time.Duration budget) {
+        return new UpdateCompany(storage, idempotency, ids, clock, budget);
+    }
+
 }
