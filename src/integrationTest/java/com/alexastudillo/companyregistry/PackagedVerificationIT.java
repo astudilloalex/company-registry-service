@@ -100,5 +100,17 @@ class PackagedVerificationIT {
             stub.reply(route.getKey(), new ReferenceStubServer.Reply(200, "{}", 1200));
             request().get("/v1/_verification/references" + route.getValue()).then().statusCode(503).body("code", equalTo("dependency-unavailable"));
         }
+        stub.reply(countryPath, 200, "{\"status\":200,\"code\":\"successful\",\"data\":{\"id\":\"" + country + "\",\"alpha2Code\":\"EC\",\"status\":\"ACTIVE\"}}");
+        stub.reply(divisionPath, 404, "{\"status\":404,\"code\":\"administrative-division-not-found\"}");
+        request().get("/v1/_verification/references/division/EC/EC-P").then().statusCode(404).body("code", equalTo("reference-not-found"));
+        for (var invalid : List.of("{invalid", "{\"status\":200,\"code\":\"successful\",\"data\":{\"id\":\"" + division
+                + "\",\"countryId\":\"" + UUID.randomUUID() + "\",\"canonicalCode\":\"EC-P\",\"status\":\"ACTIVE\"}}")) {
+            stub.reply(divisionPath, 200, invalid);
+            request().get("/v1/_verification/references/division/EC/EC-P").then().statusCode(502).body("code", equalTo("dependency-response-invalid"));
+        }
+        stub.reply(divisionPath, 503, "{\"status\":503,\"code\":\"unavailable\"}");
+        request().get("/v1/_verification/references/division/EC/EC-P").then().statusCode(503).body("code", equalTo("dependency-unavailable"));
+        stub.reply(divisionPath, new ReferenceStubServer.Reply(200, "{}", 1200));
+        request().get("/v1/_verification/references/division/EC/EC-P").then().statusCode(503).body("code", equalTo("dependency-unavailable"));
     }
 }
