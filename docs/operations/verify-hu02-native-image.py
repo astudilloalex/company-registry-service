@@ -96,7 +96,9 @@ try:
            '-e', 'POSTGRES_PASSWORD=oci_admin_test', '-e', 'DB_PASSWORD=oci_runtime_test', '-e', 'FLYWAY_DB_PASSWORD=oci_migration_test', 'docker.io/library/postgres:18-alpine')
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
-        probe = subprocess.run(['podman', 'exec', database, 'pg_isready', '-U', 'postgres', '-d', 'hu02'], capture_output=True)
+        # The init-only server accepts Unix sockets before restarting; TCP becomes
+        # ready only when the final server is available for bootstrap and the app.
+        probe = subprocess.run(['podman', 'exec', database, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres', '-d', 'hu02'], capture_output=True)
         if probe.returncode == 0:
             break
         time.sleep(.2)

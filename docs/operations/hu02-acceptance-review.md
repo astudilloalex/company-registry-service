@@ -57,7 +57,7 @@ python3 docs/operations/verify-hu02-native-image.py
 
 The OCI verifier owns disposable containers, checks user 1001, uses PostgreSQL 18 with refused provider URLs, covers every mode and restart/rotation/archival replay, and removes its containers on exit. Binary resource configuration includes `META-INF/contracts/events/**`; JVM isolation checks require the update schema and example. Event contracts are verified against produced native-process events.
 
-## Observed outcomes
+## Initial observed outcomes
 
 - Full JVM run: 200 tests in 61 suites, zero failures/errors/skips; production isolation passed. Build duration: 4m 26s.
 - Productive JAR run: 10 discovered checks in five suites, six executed successfully and four auxiliary verification-fixture checks intentionally skipped because production excludes those routes/classes. Zero failures/errors. Duration: 2m 15s.
@@ -71,6 +71,39 @@ Builder image ID: `f046cb1da286f9afce3b5ebb7d8260f265ee1b7ce22a02d1d868f722d4f14
 Full logs are `jvm-build.log`, `jvm-process.log`, `native-build.log`, `native-process.log`, `oci-build.log` and `oci-verification.log`. Separate `jvm/` and `native/` folders preserve XML reports, summaries and artifact hashes. `oci/report.json`, per-mode process/log files and stored event snapshots record image execution.
 Evidence directory: `build/hu02-evidence/` (logs, XML reports, hashes and OCI report).
 
+## Follow-up verification and warning closure
+
+The two scenario-coverage warnings from the OpenSpec review are resolved by real REST/PostgreSQL tests in `CompanyRegistrationHttpTest`:
+
+- `clearedDescriptionIsOmittedByPatchAndTheSubsequentEnrichedGet` creates a non-null description, clears it through PATCH and performs GET with the Party provider available. Both responses omit description, their operational fields match, and only GET enriches Party. PATCH makes no provider requests.
+- `creationAndUpdateKeysRemainIndependentAcrossOperationsAndTenants` uses the same key for actual POST and PATCH acceptances in two tenants. Each operation and tenant replays its own original snapshot with another actor/process and unavailable providers. SQL verifies the separate completion namespaces and unchanged Company/event counts.
+
+Both targeted tests passed (36s). The subsequent full JVM run passed 206 tests in 61 suites with zero failures, errors or skips; `quarkusBuild` and `verifyProductionIsolation` passed (1m 39s total). Reproduction:
+
+```bash
+DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true ./gradlew test verifyProductionIsolation -Dquarkus.http.test-port=0
+```
+
+Logs are `build/hu02-evidence/followup-targeted.log` and `build/hu02-evidence/followup-full-jvm.log`; `build/hu02-evidence/followup/` preserves both XML report sets and summaries. No production source changed in this follow-up. Because the initial native evidence predates refactorings already present at the start of this review, the current native binary and image were rebuilt and verified as well:
+
+- Native build passed in 5m 10s (4m 47s inside native-image), peak RSS 4.70 GB. The executable is 108,448,824 bytes and embeds both the update schema and example. Current SHA-256: `1806d4be75c1f3e8bc1f4c4bde1b7b9a921c4438da75f808b1e63c9403f96437`.
+- Native process tests passed in 33s: six successful executions and four intentional auxiliary-fixture skips, zero failures/errors. Current XML and summary are under `followup/native-process-xml/` and `followup/native-process-summary.json`.
+- Current productive JAR process tests also passed after rebuilding in 58s: six successful executions and four intentional auxiliary-fixture skips, zero failures/errors. `followup-jvm-process.log`, `followup/jvm-process-xml/`, `followup/jvm-process-summary.json` and `followup/jvm-artifact.json` preserve this separate run.
+- Rebuilt OCI image `e39cba5c128d3a1607e92c01a5715159dfbf3a06b86c671c07b6e5eb89c197a8` passed all three outbox modes, UID 1001, absent providers/broker and replay after restart/rotation/archival. `followup/oci/report.json` records the same current runner hash and the original per-mode counts.
+- The first image-verifier attempt stopped during database bootstrap because readiness could observe PostgreSQL's temporary Unix-socket server. The verifier now waits for TCP readiness of the final server; the repeated complete image run passed. Both attempt logs are retained.
+
+Fresh build/process logs are `followup-native-build.log`, `followup-native-process.log`, `followup-oci-build.log`, `followup-oci-verification.log` and `followup-oci-retry.log`. A manifest of 132 production source/build/contract hashes under `followup/production-source-sha256.json` confirms these inputs remained unchanged through verification. The current native artifact hashes supersede the initial values above.
+
+| OpenSpec review dimension | Final result |
+| --- | --- |
+| Completeness | 42/42 tasks complete; all 27 added/modified requirements implemented |
+| Correctness | All 52 scenarios reviewed; both missing integrated scenario tests now pass |
+| Coherence | All eight design decisions retained; production implementation unchanged |
+
+Reverification found no critical issues, warnings or suggestions. No applicable verification check was skipped. `openspec validate add-company-information-management --strict` and `git diff --check` passed before archiving. The four auxiliary checks omitted in each productive JAR/native run remain explicitly recorded above; they are not counted as executed tests.
+
+All three delta specs were synchronized and compared requirement by requirement with the main specs, preserving the existing integrity Purpose and unrelated requirements. Strict validation passed all 12 active change/spec inputs. With all 42 tasks complete, the change was archived to `openspec/changes/archive/2026-10-17-add-company-information-management/`, retaining `.openspec.yaml` and every planning artifact.
+
 ## Delivery boundaries
 
-HU02 does not publish RabbitMQ in any mode and does not implement HU03 lifecycle workflows. The ARCHIVED event schema is a contract handoff for HU03; stored events and routing metadata prepare HU08 delivery. No claim of publication, delivery ordering or exactly-once behavior is made. No deployment, archive of this OpenSpec change or remote repository mutation is part of this verification.
+HU02 does not publish RabbitMQ in any mode and does not implement HU03 lifecycle workflows. The ARCHIVED event schema is a contract handoff for HU03; stored events and routing metadata prepare HU08 delivery. No claim of publication, delivery ordering or exactly-once behavior is made. This review does not deploy or mutate a remote repository. Archiving completed after the successful review under the user's explicit authorization.
