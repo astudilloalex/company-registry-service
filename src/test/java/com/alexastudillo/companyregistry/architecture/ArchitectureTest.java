@@ -23,7 +23,7 @@ class ArchitectureTest {
                     "java..", "..application..", "..domain..", "io.smallrye.mutiny..");
 
     private static final ArchRule API_USES_PORTS = noClasses().that().resideInAPackage("..api..")
-            .should().dependOnClassesThat().resideInAPackage("..infrastructure..");
+            .should().dependOnClassesThat().resideInAPackage(BASE + ".infrastructure..");
 
     private static final ArchRule INFRASTRUCTURE_HAS_NO_API = noClasses()
             .that().resideInAPackage("..infrastructure..")
