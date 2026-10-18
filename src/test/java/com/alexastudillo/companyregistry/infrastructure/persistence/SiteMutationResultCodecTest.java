@@ -96,6 +96,16 @@ class SiteMutationResultCodecTest {
         }
     }
 
+    @Test void rejectsUnsupportedSnapshotFormat() {
+        var result = result(UUID.randomUUID(), UUID.randomUUID());
+        var original = stored(result, codec.encode(result));
+        var unknown = new CompletionRecord(original.key(), original.requestHash(), original.companyId(), original.siteId(),
+                original.expectedVersion(), original.resultStatus(), (short)2, original.snapshot(), original.createdAt(),
+                original.createdBy(), original.fingerprintVersion(), original.fingerprintKeyId());
+        var failure = assertThrows(IllegalStateException.class, () -> codec.decode(unknown));
+        assertNull(failure.getCause());
+    }
+
     private CompletionRecord completion(SiteMutation.Result result, SiteMutation.Operation operation,
             long expected, Instant acceptedAt, String actor) {
         var base = stored(result, codec.encode(result));

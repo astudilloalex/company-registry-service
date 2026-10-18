@@ -25,12 +25,12 @@ public class EmptySiteCommandReader implements MessageBodyReader<EmptySiteComman
             MediaType media, MultivaluedMap<String, String> headers, InputStream stream) {
         try (var parser = JSON.createParser(stream)) {
             var root = parser.nextToken();
-            if (root == null) return new EmptySiteCommand();
+            if (root == null) return EmptySiteCommand.INSTANCE;
             var document = JSON.readTree(parser);
             if (parser.nextToken() != null) throw SiteApiFailures.error(REQUEST_BODY_INVALID_JSON);
             if (root != JsonToken.START_OBJECT) throw SiteApiFailures.error(REQUEST_BODY_MUST_BE_OBJECT);
             if (document.size() != 0) throw SiteApiFailures.error(REQUEST_BODY_CONTAINS_UNKNOWN_FIELDS);
-            return new EmptySiteCommand();
+            return EmptySiteCommand.INSTANCE;
         } catch (IOException _) {
             throw SiteApiFailures.error(REQUEST_BODY_INVALID_JSON);
         }
