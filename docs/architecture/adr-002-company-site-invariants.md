@@ -65,4 +65,31 @@ Future writes commit aggregate + accepted idempotency snapshot + conditional out
 
 ## Acceptance boundary
 
+### HU05 local mutation decisions
+
+`SiteInformationPatch` preserves explicit presence for code/name/siteType. Its pure
+policy retains omitted values, rejects explicit null, and never applies HU04's
+BRANCH default. `SiteLifecyclePolicy` evaluates parent ARCHIVED before Site CLOSED,
+then command redundancy/eligibility and active legal headquarters protection.
+Ownership and expected revision must be established before invoking that policy.
+The information and lifecycle deltas in
+`openspec/changes/add-company-site-lifecycle-management/specs/` define these rules.
+
+`SiteMutation.Command` identifies UPDATE, ACTIVATE, DEACTIVATE or CLOSE with separate
+`company.site.{update,activate,deactivate,close}.v1` namespaces. Commands preserve raw
+partial text until the applicable fingerprint policy is selected. Lifecycle commands
+carry empty intent. The neutral result retains the observed Company status internally
+so historical operativity can be verified without consulting present aggregate state.
+`SiteMutationFailure` separates ownership, revision, state, invariant, uniqueness,
+idempotency and availability outcomes; presentation supplies status/code mappings.
+
+Every new acceptance, including PATCH no-op, must lock qualified Company then Site,
+recheck durable acceptance after acquiring Company, and validate the Site revision
+before states. Effective changes increment only Site once; no-op preserves Site
+audit/revision and may have its own durable completion audit. Code A → B releases A
+only at commit. CLOSED retains its current code. These decisions do not implement
+Company activation or address/contact endpoints; compatible future writers must use
+Company → Site and the common Site revision. Pure policy tests establish domain
+decisions; SQL/HTTP concurrency and atomicity require separate integration evidence.
+
 T00 supplies pure policies and database integrity checks. It does not implement the registration, activation, headquarters replacement or child mutation use cases. SQL concurrency tests must use independent transactions; pure policy tests do not establish transaction correctness.

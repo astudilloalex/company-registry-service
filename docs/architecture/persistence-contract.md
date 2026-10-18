@@ -1,5 +1,24 @@
 # Reactive persistence boundary
 
+## HU05 schema extension
+
+V5 adds `ck_company_idempotency_site_mutation_metadata` without changing V1–V4,
+the six application tables, existing identities or snapshots. Each completion in
+company.site.update.v1, company.site.activate.v1, company.site.deactivate.v1 or
+company.site.close.v1 requires an owned Site, original nonnegative expected Site
+version, result status 200, positive fingerprint policy version and valid key ID.
+The existing composite foreign keys, lowercase 64-character hash and versioned
+JSON-object snapshot constraints still apply, including to PATCH no-op acceptances.
+The identity remains tenant/operation/key; resource IDs do not extend the primary key.
+
+Before installing the CHECK, V5 stops with a controlled 23514 diagnostic if historical
+HU05 metadata is incompatible. Operators must inspect original provenance; migration
+never guesses a key, repairs a snapshot or deletes an acceptance. Previous operation
+namespaces retain their contracts. Runtime remains DML-only and Flyway uses the
+separate migration role. A deployment rollback must preserve V5 and confirmed data.
+
+## Port ownership
+
 Application owns `CompanyRepository`, `SiteRepository`, `CompletionRepository`,
 `OutboxRepository` and `AtomicOperation`. Their `RegistryData` projections carry
 pure aggregate concepts, audit/identity/version data and neutral object maps for

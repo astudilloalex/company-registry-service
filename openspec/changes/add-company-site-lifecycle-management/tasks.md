@@ -4,16 +4,16 @@ Tareas de implementación futura de HU05. Todas comienzan pendientes; crear esta
 
 ## 1. Políticas y contratos neutrales Site
 
-- [ ] 1.1 Añadir intención parcial y política pura de información Site reutilizando BusinessText/FieldChange; verificar mediante pruebas de omisión, null, `{}`, enum exacto, límites 64/200, acentos/espacios y expansión Unicode que PATCH conserva siteType omitido y no cambia los defaults HU04.
-- [ ] 1.2 Añadir política de elegibilidad/transición y protección de sede legal sobre los modelos existentes; verificar con pruebas puras las dieciséis combinaciones origen/destino, comandos al estado actual, CLOSED/ARCHIVED, preparación bajo DRAFT/INACTIVE y restricciones de HEADQUARTERS ACTIVE.
-- [ ] 1.3 Definir comandos/resultados/fallos neutrales y las cuatro operaciones idempotentes en application/site, y documentar decisiones HU05 en ADR 002/text-normalization; verificar ArchitectureTest y trazabilidad de las reglas a las deltas sin introducir framework genérico o dependencias exteriores al núcleo.
+- [x] 1.1 Añadir intención parcial y política pura de información Site reutilizando BusinessText/FieldChange; verificar mediante pruebas de omisión, null, `{}`, enum exacto, límites 64/200, acentos/espacios y expansión Unicode que PATCH conserva siteType omitido y no cambia los defaults HU04.
+- [x] 1.2 Añadir política de elegibilidad/transición y protección de sede legal sobre los modelos existentes; verificar con pruebas puras las dieciséis combinaciones origen/destino, comandos al estado actual, CLOSED/ARCHIVED, preparación bajo DRAFT/INACTIVE y restricciones de HEADQUARTERS ACTIVE.
+- [x] 1.3 Definir comandos/resultados/fallos neutrales y las cuatro operaciones idempotentes en application/site, y documentar decisiones HU05 en ADR 002/text-normalization; verificar ArchitectureTest y trazabilidad de las reglas a las deltas sin introducir framework genérico o dependencias exteriores al núcleo.
 
 ## 2. Migración e integridad de completados HU05
 
-- [ ] 2.1 Añadir la siguiente migración libre, prevista V5__enforce_site_mutation_completion_metadata.sql, con diagnóstico previo y CHECK de las cuatro operaciones; verificar instalación PostgreSQL 18 vacía, validación repetida, seis tablas y checksums V1–V4 intactos.
-- [ ] 2.2 Añadir pruebas SQL de inserción/actualización inválidas de site_id, versión esperada, HTTP 200, fingerprintVersion/keyId, hash, JSON objeto, snapshotVersion y referencias compuestas; verificar rechazo por restricciones esperadas y preservación de namespaces HU01/HU02/HU04/técnicos.
-- [ ] 2.3 Probar upgrade desde V4 con datos, aceptaciones y eventos anteriores y un histórico HU05 incompatible; verificar preservación de identidades/snapshots, detención controlada sin procedencia inventada y privilegios DML/runtime separados de migración.
-- [ ] 2.4 Actualizar DBML, constraint-verification y persistence-contract para el nuevo CHECK; verificar SchemaCatalogIntegrityTest/SchemaDocumentationTest y conservar las restricciones existentes de código, HEADQUARTERS e inmutabilidad CLOSED.
+- [x] 2.1 Añadir la siguiente migración libre, prevista V5__enforce_site_mutation_completion_metadata.sql, con diagnóstico previo y CHECK de las cuatro operaciones; verificar instalación PostgreSQL 18 vacía, validación repetida, seis tablas y checksums V1–V4 intactos.
+- [x] 2.2 Añadir pruebas SQL de inserción/actualización inválidas de site_id, versión esperada, HTTP 200, fingerprintVersion/keyId, hash, JSON objeto, snapshotVersion y referencias compuestas; verificar rechazo por restricciones esperadas y preservación de namespaces HU01/HU02/HU04/técnicos.
+- [x] 2.3 Probar upgrade desde V4 con datos, aceptaciones y eventos anteriores y un histórico HU05 incompatible; verificar preservación de identidades/snapshots, detención controlada sin procedencia inventada y privilegios DML/runtime separados de migración.
+- [x] 2.4 Actualizar DBML, constraint-verification y persistence-contract para el nuevo CHECK; verificar SchemaCatalogIntegrityTest/SchemaDocumentationTest y conservar las restricciones existentes de código, HEADQUARTERS e inmutabilidad CLOSED.
 
 ## 3. Persistencia de mutación protegida
 

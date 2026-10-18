@@ -65,6 +65,50 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
         return persistAndFlush(SiteEntity.from(site)).map(SiteEntity::value);
     }
 
+    @Override
+    public Uni<SiteRecord> findForUpdate(UUID tenantId, UUID companyId, UUID siteId) {
+        return find("tenantId = ?1 and companyId = ?2 and id = ?3", tenantId, companyId, siteId)
+                .withLock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE).firstResult()
+                .map(row -> row == null ? null : row.value());
+    }
+
+    @Override
+    public Uni<SiteRecord> update(SiteRecord row, long expectedVersion) {
+        if (expectedVersion < 0 || expectedVersion == Long.MAX_VALUE
+                || row.site().version().value() != expectedVersion + 1) {
+            throw new IllegalArgumentException("site-update-version-invalid");
+        }
+        // A single bulk update leaves the managed entity untouched: @Version cannot increment twice.
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put(PARAM_TENANT, row.site().tenantId());
+        parameters.put(PARAM_COMPANY, row.site().companyId());
+        parameters.put(PARAM_SITE, row.site().id());
+        parameters.put("expected", expectedVersion);
+        parameters.put("code", row.code());
+        parameters.put("name", row.name());
+        parameters.put("type", row.site().type());
+        parameters.put("status", row.site().status());
+        parameters.put("at", row.audit().updatedAt());
+        parameters.put("actor", row.audit().updatedBy());
+        return update("code=:code, name=:name, type=:type, status=:status, updatedAt=:at, updatedBy=:actor, "
+                + "version=version+1 where tenantId=:tenant and companyId=:company and id=:site and version=:expected", parameters)
+                .chain(count -> count == 1 ? Uni.createFrom().item(row)
+                        : Uni.createFrom().failure(new PersistenceFailure(PersistenceFailure.Kind.STALE_VERSION, null)));
+    }
+
+    @Override
+    public Uni<Boolean> codeOccupiedByOther(UUID tenantId, UUID companyId, UUID siteId, String code) {
+        return count("tenantId = ?1 and companyId = ?2 and id <> ?3 and code = ?4", tenantId, companyId, siteId, code)
+                .map(count -> count > 0);
+    }
+
+    @Override
+    public Uni<Boolean> headquartersOccupiedByOther(UUID tenantId, UUID companyId, UUID siteId) {
+        return count("tenantId = ?1 and companyId = ?2 and id <> ?3 and type = ?4 and status <> ?5",
+                tenantId, companyId, siteId, com.alexastudillo.companyregistry.domain.model.SiteType.HEADQUARTERS,
+                com.alexastudillo.companyregistry.domain.model.SiteStatus.CLOSED).map(count -> count > 0);
+    }
+
     @Override public Uni<Boolean> codeOccupied(UUID tenantId, UUID companyId, String code) {
         return count("tenantId = ?1 and companyId = ?2 and code = ?3", tenantId, companyId, code).map(n -> n > 0);
     }
