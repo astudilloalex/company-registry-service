@@ -388,3 +388,42 @@ Reports/logs: `build/hu05-evidence/{final-jvm,packaged-jvm,native-process}/resul
 `oci/disabled-original.log` record actual V4 preparation and native V4→V5 migration.
 The image harness removes only its owned disposable containers. No HU05 native gate
 remains pending; compatible future-writer limits remain in the acceptance review.
+
+## HU05 no-op clock correction verified (2026-10-18)
+
+The HU05 runner/image identities in the preceding section describe the initial
+implementation. Following formal verification, the no-op result codec was corrected
+to allow an acceptance clock earlier than Site's unchanged update audit. Effective
+changes retain strict acceptance time/actor checks; no snapshot format or migration
+changed.
+
+The productive runner was rebuilt with the same Mandrel container/runtime flags,
+5 GB heap, two threads and UuidV7Generator runtime initialization shown above.
+`build/hu05-evidence/noop-clock-native-build.log` records BUILD SUCCESSFUL in
+10m6s and peak compiler RSS 4.74 GB. The subsequent `quarkusIntTest -x quarkusBuild`
+run used `hu05EvidenceRun=noop-clock-native`, `QUARKUS_HTTP_TEST_PORT=0` and the same
+native flags. It passed in 55s: eight productive tests executed, four fixture-only
+tests skipped and zero failures/errors. XML reports live under
+`build/hu05-evidence/noop-clock-native/results/quarkusIntTest/`.
+
+PackagedSiteIT now includes an actual HTTP PATCH no-op and replay after a fixture
+sets Site.updatedAt five minutes ahead of the application clock. Both responses
+preserve the original Site, while completion time precedes its update audit and no
+mutation event is stored. This test passed against the JAR and the new ELF binary.
+The corresponding JVM selection passed 19 tests, build and production isolation;
+the JAR process suite executed eight tests with four fixture-only exclusions.
+
+The image was rebuilt using Dockerfile.native-micro. Running
+`EVIDENCE_DIR=build/hu05-evidence/noop-clock-oci python3 -u docs/operations/verify-hu05-native-image.py`
+passed all three modes under actual/configured UID 1001, V4→V5 migration and preserved
+history, HU05 lifecycle/no-op replay, K1→K2 rotation and restart. The retained HU04
+commit-deadline fixture also passed and is not relabeled as HU05 fault injection.
+Only owned disposable containers were removed.
+
+- Current runner SHA-256: `7a9d75e10373c7d0d912cb0b872d98c8ed8b3667f21376756004bdf249a090fd`.
+- Current image ID: `5b9ed8661d5bf8649d68060010fe97b97bfb3cc683bba64b71b63691f05d728e`.
+- Current OCI report: `build/hu05-evidence/noop-clock-oci/report.json`.
+- Native process log: `build/hu05-evidence/noop-clock-native-process.log`.
+- OCI logs: `build/hu05-evidence/noop-clock-image-build.log` and `build/hu05-evidence/noop-clock-image-run.log`.
+
+The follow-up verification warning is resolved, with no required native check pending.

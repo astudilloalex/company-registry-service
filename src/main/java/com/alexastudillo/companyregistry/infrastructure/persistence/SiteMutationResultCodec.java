@@ -84,8 +84,10 @@ public class SiteMutationResultCodec implements SiteMutationResults {
         if (changed && (!result.site().audit().updatedAt().equals(stored.createdAt())
                 || !result.site().audit().updatedBy().equals(stored.createdBy()))) throw new IllegalArgumentException();
         OpaqueValue.required(stored.createdBy(), 128);
-        if (stored.createdAt() == null || !stored.createdAt().equals(stored.createdAt().truncatedTo(ChronoUnit.MICROS))
-                || stored.createdAt().isBefore(result.site().audit().updatedAt())) throw new IllegalArgumentException();
+        // A no-op records an independent acceptance clock; node clocks need not order Site's unchanged audit.
+        if (stored.createdAt() == null || !stored.createdAt().equals(stored.createdAt().truncatedTo(ChronoUnit.MICROS))) {
+            throw new IllegalArgumentException();
+        }
     }
 
     private static void shape(Map<String, Object> document) {

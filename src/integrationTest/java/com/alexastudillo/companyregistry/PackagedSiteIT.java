@@ -58,6 +58,44 @@ class PackagedSiteIT {
         }
         assertTrue(ProcessEnvironmentResource.stub.requests().isEmpty());assertEvent(tenant,original);
     }
+    @Test void noOpReplayPreservesSiteAuditDespiteClockSkew() throws Exception {
+        var tenant = UUID.randomUUID();
+        var company = seed(tenant);
+        var site = given().headers(headers(tenant, "create")).contentType("application/json")
+                .body("{\"code\":\"SITE\",\"name\":\"SITE\"}").post(path(company))
+                .then().statusCode(201).extract().path("data.siteId").toString();
+        try (var connection = db(); var statement = connection.createStatement()) {
+            statement.executeUpdate("UPDATE company_sites SET version=1,updated_at=clock_timestamp()+interval '5 minutes',"
+                    + "updated_by='PreviousActor' WHERE id='" + site + "'");
+        }
+        var detail = path(company) + "/" + site;
+        var original = json.readTree(given().headers(headers(tenant, null)).get(detail)
+                .then().statusCode(200).extract().asString()).path("data");
+        var acceptedHeaders = headers(tenant, "clock-skew");
+        acceptedHeaders.put("If-Match", "1");
+        var replayHeaders = headers(tenant, "clock-skew");
+        replayHeaders.put("If-Match", "1");
+        replayHeaders.put("User-Id", "ReplayActor");
+        for (var attempt : List.of(acceptedHeaders, replayHeaders)) {
+            var response = given().headers(attempt).contentType("application/json").body("{}").patch(detail)
+                    .then().statusCode(200).header("Process-Id", attempt.get("Process-Id")).extract().asString();
+            assertEquals(original, json.readTree(response).path("data"));
+        }
+        try (var connection = db(); var statement = connection.createStatement(); var rows = statement.executeQuery(
+                "SELECT created_at FROM company_idempotency_records WHERE tenant_id='" + tenant
+                        + "' AND operation='company.site.update.v1'")) {
+            assertTrue(rows.next());
+            assertTrue(rows.getTimestamp(1).toInstant().isBefore(java.time.Instant.parse(original.path("updatedAt").asText())));
+            assertFalse(rows.next());
+        }
+        try (var connection = db(); var statement = connection.createStatement(); var rows = statement.executeQuery(
+                "SELECT count(*) FROM company_outbox_events WHERE aggregate_id='" + site
+                        + "' AND event_type<>'company.site.created.v1'")) {
+            assertTrue(rows.next());
+            assertEquals(0, rows.getInt(1));
+        }
+    }
+
     private JsonNode assertOriginalSite(UUID tenant, UUID company, String body) throws Exception {
         var accepted = given().headers(headers(tenant, "original")).contentType("application/json").body(body).post(path(company))
                 .then().statusCode(201).extract().asString();

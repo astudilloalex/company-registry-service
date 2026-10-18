@@ -129,6 +129,35 @@ class MutateSiteTest {
         });
     }
 
+    @Test @RunOnVertxContext void noOpWithAnEarlierAcceptanceClockReplaysItsUnchangedSite(UniAsserter a) {
+        var parent = parent();
+        var original = site(parent);
+        var audit = original.audit();
+        var row = new SiteRecord(original.site(), original.code(), original.name(),
+                new Audit(audit.createdAt().minusSeconds(60), audit.createdBy(), audit.updatedAt(), audit.updatedBy()));
+        var acceptedAt = audit.updatedAt().minusMillis(1);
+        var context = new OperationContext(row.site().tenantId(), "NoOpActor", UUID.randomUUID().toString());
+        var command = new SiteMutation.Command(context, row.site().companyId(), row.site().id(), 0,
+                "clock-skew", SiteMutation.Operation.UPDATE, SiteInformationPatch.empty());
+        var quietEvents = mock(SiteMutationEvents.class);
+        var service = new MutateSite(new MutateSite.Storage(atomic, companies, sites, quietEvents),
+                new MutateSite.Idempotency(completions, fingerprints, results), ids,
+                Clock.fixed(acceptedAt, ZoneOffset.UTC), Duration.ofSeconds(10));
+        a.execute(() -> atomic.execute(() -> companies.insert(parent).chain(() -> sites.insert(row))));
+        a.assertThat(() -> service.execute(command), value -> assertEquals(row, value.site()));
+        a.assertThat(() -> atomic.read(() -> completions.find(new CompletionKey(context.tenantId(),
+                command.operation().namespace(), command.idempotencyKey()))), stored -> {
+            assertEquals(acceptedAt, stored.createdAt());
+            assertEquals(context.actor(), stored.createdBy());
+        });
+        a.assertThat(() -> mutation.execute(command), value -> assertEquals(row, value.site()));
+        a.assertThat(() -> atomic.read(() -> sites.find(context.tenantId(), command.companyId(), command.siteId())),
+                value -> assertEquals(row, value));
+        a.execute(() -> {
+            verify(quietEvents, never()).store(any());
+        });
+    }
+
     @Test @RunOnVertxContext void modesStoreOnlyTheSelectedFactAndNoOpReplayStoreNone(UniAsserter a) {
         for (var mode : List.of("disabled", "stored-only", "published")) {
             var config = new io.smallrye.config.SmallRyeConfigBuilder()

@@ -73,7 +73,8 @@ BRANCH default. `SiteLifecyclePolicy` evaluates parent ARCHIVED before Site CLOS
 then command redundancy/eligibility and active legal headquarters protection.
 Ownership and expected revision must be established before invoking that policy.
 The information and lifecycle deltas in
-`openspec/changes/add-company-site-lifecycle-management/specs/` define these rules.
+`openspec/changes/archive/2026-10-18-add-company-site-lifecycle-management/specs/`
+define these rules; their accepted requirements are synchronized in `openspec/specs/`.
 
 `SiteMutation.Command` identifies UPDATE, ACTIVATE, DEACTIVATE or CLOSE with separate
 `company.site.{update,activate,deactivate,close}.v1` namespaces. Commands preserve raw

@@ -2,7 +2,7 @@
 
 Date: 2026-10-18. JVM, SQL, HTTP concurrency, packaged JVM, native binary/process
 and non-root OCI gates passed. No required HU05 verification remains pending.
-No archive or production deployment is performed.
+No production deployment is performed.
 
 ## Acceptance matrix
 
@@ -95,3 +95,52 @@ results are in [native verification](native-verification.md). The corrected OCI
 report is `build/hu05-evidence/oci/report.json`. Only owned disposable containers
 were removed. JVM-only exhaustive races and the excluded fixture suite are not
 presented as additional native production tests.
+
+## Verification follow-up: independent no-op clocks (2026-10-18)
+
+Formal verification found that an accepted PATCH no-op could fail its identical
+replay when its instance clock was behind Site.updatedAt. The codec no longer
+requires ordering between those independent clocks. Effective mutations still
+require the original acceptance time/actor in Site's updated audit. The persisted
+format, fingerprint policy, keys and migrations are unchanged.
+
+The new codec regression failed with `historical-site-result-invalid` before the
+correction. The passing follow-up checks cover a 1 ms earlier fixed acceptance
+clock in the codec and PostgreSQL service, and a real HTTP no-op/replay after a
+test fixture places Site.updatedAt five minutes ahead. The latter passes against
+both the productive JAR and native executable, preserves all twelve response
+fields, uses the current Process-Id and stores no mutation event. Negative codec
+tests still reject a changed result with a different acceptance time or actor.
+
+| Post-correction gate | Executed result |
+| --- | --- |
+| Codec, JSONB, service, HTTP and architecture selection | 19 tests, zero skipped/failures/errors |
+| Build and verifyProductionIsolation | Passed; combined JVM invocation 4m18s |
+| Productive JAR process | 8 executed, 4 fixture-only skipped, zero failures/errors |
+| Native build | Passed in 10m6s; peak compiler RSS 4.74 GB |
+| Productive native process | 8 executed, 4 fixture-only skipped, zero failures/errors; 55s |
+| Native OCI image | All three outbox modes passed under UID 1001, including restart/rotation and V4→V5 upgrade |
+
+Before this correction, the formal verification reran the full JVM suite: 323
+tests passed with no skips/failures/errors. The post-correction selection overlaps
+that suite; these counts are not added as unique tests. Reports are under
+`build/hu05-evidence/noop-clock-final/results/` and
+`build/hu05-evidence/noop-clock-native/results/`. The expected pre-fix failure is
+under `build/hu05-evidence/noop-clock-red/results/`; an intermediate test-fixture
+failure is not passing evidence.
+
+The latest OCI report is `build/hu05-evidence/noop-clock-oci/report.json`.
+Its runner SHA-256 is
+`7a9d75e10373c7d0d912cb0b872d98c8ed8b3667f21376756004bdf249a090fd`;
+its image ID is
+`5b9ed8661d5bf8649d68060010fe97b97bfb3cc683bba64b71b63691f05d728e`.
+These supersede the pre-correction artifact identities above. All source hashes
+were checked unchanged throughout the final native build and process/image gates.
+The verification warning is resolved; no required follow-up check remains pending.
+
+After the passing follow-up, the seven capability deltas were confirmed synced
+(43 added requirements, three modified). All 18 main specs passed strict validation.
+The spec-driven change was archived with all 36 tasks complete at
+`openspec/changes/archive/2026-10-18-add-company-site-lifecycle-management/`.
+All eleven planning files, including `.openspec.yaml`, retained their original
+hashes during the move. No active OpenSpec change remains.

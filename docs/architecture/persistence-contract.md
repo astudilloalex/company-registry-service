@@ -201,7 +201,10 @@ status verifies the stored boolean without any query to present aggregate state.
 Only the twelve Site response fields are public. UPDATE may retain expectedVersion
 (no-op) or advance once; lifecycle commands must advance once and match their target
 state. A no-op completion has its own acceptance time/actor and need not match Site's
-unchanged update audit. Types, ownership, UTC microseconds, status and revision are
+unchanged update audit. Clock skew between instances can place its acceptance time
+before the Site's prior update time; that ordering does not invalidate the no-op or
+its replay. Effective changes still require the same acceptance time and actor in
+their Site audit. Types, ownership, UTC microseconds, status and revision are
 validated; corruption or unsupported format/policy/key is an internal error.
 
 Policy 1 signs tenant/operation/Company/Site/original version and canonical partial

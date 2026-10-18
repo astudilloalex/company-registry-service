@@ -85,6 +85,25 @@ class SiteMutationResultCodecTest {
         }
     }
 
+    @Test void replaysNoOpWhenAcceptanceClockPrecedesUnchangedSiteAudit() {
+        var result = result(UUID.randomUUID(), UUID.randomUUID());
+        var acceptedAt = result.site().audit().updatedAt().minusMillis(1);
+        var stored = completion(result, SiteMutation.Operation.UPDATE, 8, acceptedAt, "OtherActor");
+
+        assertEquals(result, codec.decode(stored));
+    }
+
+    @Test void changedResultsStillRequireTheOriginalAcceptanceTimeAndActor() {
+        var result = result(UUID.randomUUID(), UUID.randomUUID());
+        var audit = result.site().audit();
+        for (var acceptedAt : List.of(audit.updatedAt().minusMillis(1), audit.updatedAt().plusMillis(1))) {
+            var stored = completion(result, SiteMutation.Operation.ACTIVATE, 7, acceptedAt, audit.updatedBy());
+            assertThrows(IllegalStateException.class, () -> codec.decode(stored));
+        }
+        var wrongActor = completion(result, SiteMutation.Operation.ACTIVATE, 7, audit.updatedAt(), "OtherActor");
+        assertThrows(IllegalStateException.class, () -> codec.decode(wrongActor));
+    }
+
     @Test void rejectsWrongRevisionAndLifecycleStateWithoutRepair() {
         var result = result(UUID.randomUUID(), UUID.randomUUID());
         for (var operation : SiteMutation.Operation.values()) {
