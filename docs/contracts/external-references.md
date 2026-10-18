@@ -55,6 +55,17 @@ check returned division.countryId and canonicalCode against that request. No
 provider database access is allowed, and no placeholder permissive lookup is used.
 Future provider drift must fail as an incompatible contract, not a valid reference.
 
+HU06 adds `DivisionReferences.findInCountry(context, country, canonicalCode)`.
+It uses the same confirmed country-qualified route and DTO, receiving the
+already resolved neutral country identity/state. The alpha-2 entry remains a
+compatible facade. Address validation resolves country once, checks ACTIVE,
+and only then resolves a supplied division. Country absence and division
+absence therefore remain distinguishable. `DivisionReferenceAdapterTest`
+exercises both entries with the real client and `ReferenceStubServer`, including
+exact identity/code/membership, all known states, headers, 404, incompatible
+success, 503 and read timeout. The new entry introduces no provider route,
+header or response property beyond the evidence above.
+
 ## Neutral I/O contracts
 
 Application owns Party/Country/Division reference ports and minimal projections.

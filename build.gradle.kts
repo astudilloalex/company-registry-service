@@ -171,5 +171,6 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    maxHeapSize = "1g"
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
 }

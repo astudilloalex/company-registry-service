@@ -361,3 +361,24 @@ rewrite any acceptance. `DatabaseStartupTest`, `SchemaCatalogIntegrityTest` and
 `SchemaDocumentationTest` check clean V3 startup, separate runtime/migrator
 permissions, six application tables, installed constraints and this inventory.
 V1/V2 source files remain unchanged; do not repair their checksums to deploy V3.
+
+
+## V7 — Site address acceptance and pagination
+
+Authority: `V7__add_site_address_management_support.sql`; V1–V6 are unchanged.
+`ck_company_idempotency_site_address_metadata` requires the three
+`company.site.address.{create,update,delete}.v1` namespaces to retain an
+owned Site, original nonnegative expected version and fingerprint provenance.
+CREATE requires status 201, UPDATE/DELETE 200, including a no-op UPDATE.
+The common hash, snapshot, ownership and key constraints continue to apply.
+Preflight rejects incompatible historical metadata with SQLSTATE 23514 and
+retains the original rows; it never assigns current keys or fabricates provenance.
+
+`SiteAddressMetadataMigrationTest` tests V6 upgrades, preservation of previous
+acceptances and diagnosis of all three incompatible namespaces.
+`SiteAddressMetadataIntegrityTest` checks invalid metadata on INSERT/UPDATE
+and the valid/ready partial index `ix_company_site_addresses_page` with keys
+`(site_id, created_at DESC, id DESC) WHERE deleted_at IS NULL`, alongside
+`uq_company_site_primary_address`. `SchemaCatalogIntegrityTest` and
+`SchemaDocumentationTest` compare the complete catalog and DBML declarations.
+Actual execution outcomes belong in the HU06 acceptance evidence.

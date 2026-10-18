@@ -63,6 +63,48 @@ an explicit field equal to the stored value are different requests.
 `SiteInformationPolicyTest` covers these information-management delta requirements;
 `SiteLifecyclePolicyTest` covers lifecycle/terminality and headquarters decisions.
 
+## Site addresses (HU06)
+
+`AddressText` uses `BusinessText` for the canonical postal value. Country is
+alpha-2 `[A-Z]{2}`; line1/line2 are limited to 300 code points, administrative
+division to 64 and house/postal numbers to 32. `AddressText.type` requires an
+explicit PHYSICAL or MAILING value after strip and Locale.ROOT uppercase. There
+is no implicit PHYSICAL default. Uppercase expansion counts toward every limit;
+accents and internal spaces remain significant. Optional nulls are allowed,
+but supplied blanks are invalid.
+
+`AddressInformationPatch` preserves original presence and value separately.
+`AddressInformationPolicy` canonicalizes in type, country, line1, division,
+line2, house, postal, primary, coordinates order. Omission preserves the stored
+value. Null clears only optional postal fields or the complete coordinate pair;
+null type/country/line1/primary is invalid. Changing country retains an omitted
+division; geographic eligibility is a separate decision about the resulting
+combination. `create` requires the three explicit fields, defaults primary to
+false and other optionals to null. Canonically equal results, including `{}`
+and redundant clears, are no-ops without altering the original intention.
+
+`AddressCoordinates` uses BigDecimal throughout. Both members must be present
+or both omitted in an input; a supplied pair must contain two numbers or two
+nulls. Latitude is in [-90,90] and longitude in [-180,180], inclusive. Both
+original ranges are checked before precision. Stripping redundant trailing
+zeros must leave at most six decimal places: no rounding is permitted, even
+for values just outside a limit. Canonical equality ignores decimal scale and
+negative zero. HTTP readers own JSON number type validation; the pure core
+never uses floating-point conversion. Omission keeps the pair in PATCH and
+two explicit nulls remove it.
+
+`AddressPrimaryPolicy` identifies only the destination primary to demote before
+promoting the target. Reclassification preserves omitted primary selection,
+can displace the destination selection, and never chooses a replacement for
+the former type. Explicit false keeps the destination primary untouched.
+Storage, audit, aggregate revision, admission and atomic acceptance remain
+application/infrastructure responsibilities.
+
+Pure `AddressTextTest`, `AddressCoordinatesTest`, `AddressInformationPolicyTest`
+and `AddressPrimaryPolicyTest` cover these value and decision contracts.
+The architecture suite checks Domain against transport, persistence, Mutiny
+and Application dependencies, including deliberately invalid fixtures.
+
 ## Java/PostgreSQL compatibility
 
 Java performs canonicalization; PostgreSQL CHECKs verify the stored canonical output, not an independent normalization of raw request input. Java and PostgreSQL do not promise identical Unicode/collation behavior for every raw character. Tests verify canonical accented Spanish text, Ç, Turkish-locale independence and `straße`→`STRASSE`. PostgreSQL 18 must accept that canonical output under `upper(value) = value` and `btrim(value) = value`. Deployments must use a compatible UTF-8 database locale; do not use SQL `upper(rawInput)` as the request fingerprint algorithm.

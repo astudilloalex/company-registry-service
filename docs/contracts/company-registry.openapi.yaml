@@ -1630,6 +1630,621 @@ paths:
                   value:
                     status: 503
                     code: dependency-unavailable
+  /v1/companies/{companyId}/sites/{siteId}/addresses:
+    post:
+      operationId: createCompanySiteAddress
+      description: Addresses belong to tenant/Company/Site and share Site revision. Mutations protect Company
+        before Site; required geographic HTTP runs outside finalized sessions, followed by renewed local
+        checks. Replay precedes current state and returns original audit/revision with current Process-Id.
+        Deleted addresses are absent before revision checks. No-op/replay produce no revision/event.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Original accepted address or receipt, or current local address collection. Nullable
+            response optionals are omitted.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressEnvelope'
+        '400':
+          description: Closed JSON/context/path/key/header/query validation; descriptive HU06 code.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '404':
+          description: company-not-found, site-not-found, address-not-found, country-reference-not-found
+            or administrative-division-reference-not-found.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '409':
+          description: Archived Company, closed Site, inactive geographic assignment or incompatible idempotency
+            intent.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '412':
+          description: aggregate-version-mismatch, after current address absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '500':
+          description: Sanitized server-error; includes unknown/corrupt historical material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '502':
+          description: dependency-response-invalid; never includes provider payload.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '503':
+          description: dependency-unavailable; timeout/unknown finalization, no automatic mutation retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAddressRequest'
+            example:
+              addressType: PHYSICAL
+              countryCode: EC
+              addressLine1: AVENIDA  JOSÉ
+              latitude: -0.123456
+              longitude: 78.123456
+    get:
+      operationId: listCompanySiteAddresses
+      description: Addresses belong to tenant/Company/Site and share Site revision. Mutations protect Company
+        before Site; required geographic HTTP runs outside finalized sessions, followed by renewed local
+        checks. Replay precedes current state and returns original audit/revision with current Process-Id.
+        Deleted addresses are absent before revision checks. No-op/replay produce no revision/event.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: addressType
+        in: query
+        schema:
+          type: string
+          enum:
+          - PHYSICAL
+          - MAILING
+      - name: isPrimary
+        in: query
+        schema:
+          type: boolean
+        description: Exact true/false; combined with addressType using AND.
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          maxLength: 4096
+        description: Authenticated address-only scope/filter/order boundary. Actor/process/limit may change.
+          No snapshot across pages.
+      responses:
+        '200':
+          description: Original accepted address or receipt, or current local address collection. Nullable
+            response optionals are omitted.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressCollectionEnvelope'
+        '400':
+          description: Closed JSON/context/path/key/header/query validation; descriptive HU06 code.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '404':
+          description: company-not-found, site-not-found, address-not-found, country-reference-not-found
+            or administrative-division-reference-not-found.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '409':
+          description: Archived Company, closed Site, inactive geographic assignment or incompatible idempotency
+            intent.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '412':
+          description: aggregate-version-mismatch, after current address absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '500':
+          description: Sanitized server-error; includes unknown/corrupt historical material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '502':
+          description: dependency-response-invalid; never includes provider payload.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '503':
+          description: dependency-unavailable; timeout/unknown finalization, no automatic mutation retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+  /v1/companies/{companyId}/sites/{siteId}/addresses/{addressId}:
+    get:
+      operationId: getCompanySiteAddress
+      description: Addresses belong to tenant/Company/Site and share Site revision. Mutations protect Company
+        before Site; required geographic HTTP runs outside finalized sessions, followed by renewed local
+        checks. Replay precedes current state and returns original audit/revision with current Process-Id.
+        Deleted addresses are absent before revision checks. No-op/replay produce no revision/event.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: addressId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Original accepted address or receipt, or current local address collection. Nullable
+            response optionals are omitted.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressEnvelope'
+        '400':
+          description: Closed JSON/context/path/key/header/query validation; descriptive HU06 code.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '404':
+          description: company-not-found, site-not-found, address-not-found, country-reference-not-found
+            or administrative-division-reference-not-found.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '409':
+          description: Archived Company, closed Site, inactive geographic assignment or incompatible idempotency
+            intent.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '412':
+          description: aggregate-version-mismatch, after current address absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '500':
+          description: Sanitized server-error; includes unknown/corrupt historical material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '502':
+          description: dependency-response-invalid; never includes provider payload.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '503':
+          description: dependency-unavailable; timeout/unknown finalization, no automatic mutation retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+    patch:
+      operationId: updateCompanySiteAddress
+      description: Addresses belong to tenant/Company/Site and share Site revision. Mutations protect Company
+        before Site; required geographic HTTP runs outside finalized sessions, followed by renewed local
+        checks. Replay precedes current state and returns original audit/revision with current Process-Id.
+        Deleted addresses are absent before revision checks. No-op/replay produce no revision/event.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: addressId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      responses:
+        '200':
+          description: Original accepted address or receipt, or current local address collection. Nullable
+            response optionals are omitted.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressEnvelope'
+        '400':
+          description: Closed JSON/context/path/key/header/query validation; descriptive HU06 code.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '404':
+          description: company-not-found, site-not-found, address-not-found, country-reference-not-found
+            or administrative-division-reference-not-found.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '409':
+          description: Archived Company, closed Site, inactive geographic assignment or incompatible idempotency
+            intent.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '412':
+          description: aggregate-version-mismatch, after current address absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '500':
+          description: Sanitized server-error; includes unknown/corrupt historical material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '502':
+          description: dependency-response-invalid; never includes provider payload.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '503':
+          description: dependency-unavailable; timeout/unknown finalization, no automatic mutation retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAddressRequest'
+            example:
+              houseNumber: 12A
+              administrativeDivisionCode: null
+    delete:
+      operationId: deleteCompanySiteAddress
+      description: Addresses belong to tenant/Company/Site and share Site revision. Mutations protect Company
+        before Site; required geographic HTTP runs outside finalized sessions, followed by renewed local
+        checks. Replay precedes current state and returns original audit/revision with current Process-Id.
+        Deleted addresses are absent before revision checks. No-op/replay produce no revision/event.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: addressId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      responses:
+        '200':
+          description: Original accepted address or receipt, or current local address collection. Nullable
+            response optionals are omitted.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressDeletionEnvelope'
+        '400':
+          description: Closed JSON/context/path/key/header/query validation; descriptive HU06 code.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '404':
+          description: company-not-found, site-not-found, address-not-found, country-reference-not-found
+            or administrative-division-reference-not-found.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '409':
+          description: Archived Company, closed Site, inactive geographic assignment or incompatible idempotency
+            intent.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '412':
+          description: aggregate-version-mismatch, after current address absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '500':
+          description: Sanitized server-error; includes unknown/corrupt historical material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '502':
+          description: dependency-response-invalid; never includes provider payload.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+        '503':
+          description: dependency-unavailable; timeout/unknown finalization, no automatic mutation retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressErrorResponse'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptySiteCommand'
+            example: {}
 components:
   parameters:
     TenantId:
@@ -2496,6 +3111,397 @@ components:
           - tenant-id-invalid
           - user-id-invalid
           - server-error
+    CreateAddressRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - addressType
+      - countryCode
+      - addressLine1
+      properties:
+        addressType:
+          type: string
+          description: Explicit PHYSICAL or MAILING after strip and Locale.ROOT uppercase.
+        countryCode:
+          type: string
+          description: Country alpha-2 after strip and uppercase; every new assignment must resolve ACTIVE.
+        addressLine1:
+          type: string
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 300 canonical Unicode code
+            points. Supplied blanks rejected.
+        administrativeDivisionCode:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 64 canonical Unicode code
+            points. Supplied blanks rejected.
+        addressLine2:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 300 canonical Unicode code
+            points. Supplied blanks rejected.
+        houseNumber:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 32 canonical Unicode code
+            points. Supplied blanks rejected.
+        postalCode:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 32 canonical Unicode code
+            points. Supplied blanks rejected.
+        latitude:
+          type:
+          - number
+          - 'null'
+          minimum: -90
+          maximum: 90
+          multipleOf: 1.0e-06
+        longitude:
+          type:
+          - number
+          - 'null'
+          minimum: -180
+          maximum: 180
+          multipleOf: 1.0e-06
+        isPrimary:
+          type: boolean
+          default: false
+      description: 'Latitude/longitude must be supplied together: two numbers or two nulls. Precision must
+        be exact at six decimals; redundant trailing zeros allowed. Other absent optionals default null; isPrimary
+        defaults false.'
+    UpdateAddressRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        addressType:
+          type: string
+          description: Explicit PHYSICAL or MAILING after strip and Locale.ROOT uppercase.
+        countryCode:
+          type: string
+          description: Country alpha-2 after strip and uppercase; every new assignment must resolve ACTIVE.
+        addressLine1:
+          type: string
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 300 canonical Unicode code
+            points. Supplied blanks rejected.
+        administrativeDivisionCode:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 64 canonical Unicode code
+            points. Supplied blanks rejected. Explicit null clears; omission preserves.
+        addressLine2:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 300 canonical Unicode code
+            points. Supplied blanks rejected. Explicit null clears; omission preserves.
+        houseNumber:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 32 canonical Unicode code
+            points. Supplied blanks rejected. Explicit null clears; omission preserves.
+        postalCode:
+          type:
+          - string
+          - 'null'
+          description: Strip, uppercase, preserve accents/internal spaces; maximum 32 canonical Unicode code
+            points. Supplied blanks rejected. Explicit null clears; omission preserves.
+        latitude:
+          type:
+          - number
+          - 'null'
+          minimum: -90
+          maximum: 90
+          multipleOf: 1.0e-06
+        longitude:
+          type:
+          - number
+          - 'null'
+          minimum: -180
+          maximum: 180
+          multipleOf: 1.0e-06
+        isPrimary:
+          type: boolean
+      description: Omission preserves each stored value. Null clears optional text or both coordinates. Country
+        changes retain an omitted division and validate the resulting combination; explicit division null
+        removes it. Canonically equal results are no-ops but still require current If-Match and editable parents.
+    AddressResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - addressId
+      - siteId
+      - siteVersion
+      - addressType
+      - countryCode
+      - addressLine1
+      - isPrimary
+      - createdAt
+      - createdBy
+      - updatedAt
+      - updatedBy
+      properties:
+        addressId:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        siteVersion:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Shared current Site revision on GET; original accepted revision on replay.
+        addressType:
+          type: string
+          enum:
+          - PHYSICAL
+          - MAILING
+        countryCode:
+          type: string
+          pattern: ^[A-Z]{2}$
+        addressLine1:
+          type: string
+          maxLength: 300
+        isPrimary:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+        administrativeDivisionCode:
+          type: string
+          maxLength: 64
+        addressLine2:
+          type: string
+          maxLength: 300
+        houseNumber:
+          type: string
+          maxLength: 32
+        postalCode:
+          type: string
+          maxLength: 32
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          multipleOf: 1.0e-06
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          multipleOf: 1.0e-06
+    AddressDeletionResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - addressId
+      - siteId
+      - siteVersion
+      - deletedAt
+      - deletedBy
+      properties:
+        addressId:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        siteVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        deletedAt:
+          type: string
+          format: date-time
+        deletedBy:
+          type: string
+    AddressEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      - code
+      - data
+      properties:
+        status:
+          type: integer
+          enum:
+          - 200
+          - 201
+        code:
+          const: successful
+        data:
+          $ref: '#/components/schemas/AddressResponse'
+    AddressDeletionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      - code
+      - data
+      properties:
+        status:
+          type: integer
+          enum:
+          - 200
+        code:
+          const: successful
+        data:
+          $ref: '#/components/schemas/AddressDeletionResponse'
+    AddressCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      - code
+      - data
+      - numberOfElements
+      properties:
+        status:
+          const: 200
+        code:
+          const: successful
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddressResponse'
+        numberOfElements:
+          type: integer
+          minimum: 0
+          maximum: 200
+        nextCursor:
+          type: string
+          maxLength: 4096
+    AddressErrorResponse:
+      type: object
+      required:
+      - status
+      - code
+      additionalProperties: false
+      properties:
+        status:
+          type: integer
+          enum:
+          - 400
+          - 404
+          - 409
+          - 412
+          - 415
+          - 500
+          - 502
+          - 503
+        code:
+          type: string
+          enum:
+          - active-headquarters-required
+          - address-administrative-division-code-blank
+          - address-administrative-division-code-must-be-string
+          - address-administrative-division-code-required
+          - address-administrative-division-code-too-long
+          - address-coordinates-must-be-both-null-or-numeric
+          - address-coordinates-must-be-provided-together
+          - address-country-code-blank
+          - address-country-code-invalid
+          - address-country-code-must-be-string
+          - address-country-code-required
+          - address-country-code-too-long
+          - address-cursor-invalid-or-incompatible
+          - address-house-number-blank
+          - address-house-number-must-be-string
+          - address-house-number-required
+          - address-house-number-too-long
+          - address-id-invalid
+          - address-is-primary-filter-invalid
+          - address-is-primary-must-be-boolean
+          - address-latitude-must-be-number
+          - address-latitude-out-of-range
+          - address-latitude-precision-exceeded
+          - address-line1-blank
+          - address-line1-must-be-string
+          - address-line1-required
+          - address-line1-too-long
+          - address-line2-blank
+          - address-line2-must-be-string
+          - address-line2-required
+          - address-line2-too-long
+          - address-longitude-must-be-number
+          - address-longitude-out-of-range
+          - address-longitude-precision-exceeded
+          - address-not-found
+          - address-page-limit-must-be-an-integer
+          - address-page-limit-must-be-between-1-and-200
+          - address-postal-code-blank
+          - address-postal-code-must-be-string
+          - address-postal-code-required
+          - address-postal-code-too-long
+          - address-type-blank
+          - address-type-must-be-string
+          - address-type-not-supported
+          - address-type-required
+          - address-type-too-long
+          - administrative-division-must-be-active
+          - administrative-division-reference-not-found
+          - aggregate-version-mismatch
+          - company-id-invalid
+          - company-not-found
+          - country-must-be-active
+          - country-reference-not-found
+          - dependency-response-invalid
+          - dependency-unavailable
+          - headquarters-already-exists
+          - idempotency-key-already-used-with-different-request
+          - idempotency-key-blank
+          - idempotency-key-duplicated
+          - idempotency-key-required
+          - idempotency-key-too-long
+          - if-match-duplicated
+          - if-match-invalid
+          - if-match-required
+          - process-id-invalid
+          - query-parameter-not-supported
+          - query-parameter-repeated
+          - request-body-contains-duplicate-fields
+          - request-body-contains-unknown-fields
+          - request-body-invalid-json
+          - request-body-must-be-object
+          - request-body-required
+          - server-error
+          - site-already-in-requested-state
+          - site-closed
+          - site-code-already-exists
+          - site-code-must-be-string
+          - site-code-required
+          - site-code-too-long
+          - site-cursor-invalid-or-incompatible
+          - site-id-invalid
+          - site-mutation-not-allowed-for-archived-company
+          - site-name-must-be-string
+          - site-name-required
+          - site-name-too-long
+          - site-not-found
+          - site-page-limit-must-be-an-integer
+          - site-page-limit-must-be-between-1-and-200
+          - site-registration-not-allowed-for-archived-company
+          - site-status-not-supported
+          - site-transition-not-allowed
+          - site-type-must-be-string
+          - site-type-not-supported
+          - site-type-null-not-allowed
+          - tenant-id-invalid
+          - unsupported-media-type
+          - user-id-invalid
   examples:
     CompanySuccess:
       summary: Original enriched accepted Company, including masked identifiers.
