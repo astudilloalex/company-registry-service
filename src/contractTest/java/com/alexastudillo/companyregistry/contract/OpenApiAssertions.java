@@ -21,7 +21,9 @@ public final class OpenApiAssertions {
         assertEquals(expected.getInfo(), actual.getInfo());
         assertEquals(Set.of("/v1/companies", "/v1/companies/{companyId}", "/v1/companies/{companyId}/sites",
                 "/v1/companies/{companyId}/sites/{siteId}", "/v1/companies/{companyId}/sites/{siteId}/activate",
-                "/v1/companies/{companyId}/sites/{siteId}/deactivate", "/v1/companies/{companyId}/sites/{siteId}/close"), actual.getPaths().keySet());
+                "/v1/companies/{companyId}/sites/{siteId}/deactivate", "/v1/companies/{companyId}/sites/{siteId}/close",
+                "/v1/companies/{companyId}/activate", "/v1/companies/{companyId}/deactivate",
+                "/v1/companies/{companyId}/archive"), actual.getPaths().keySet());
         var site = actual.getComponents().getSchemas().get("SiteResponse");
         assertEquals(12, site.getRequired().size());
         assertEquals(Set.of("siteId", "companyId", "code", "name", "siteType", "status", "version", "effectivelyOperational",
@@ -57,6 +59,13 @@ public final class OpenApiAssertions {
             assertEquals(Set.of("200", "400", "404", "409", "412", "415", "500", "503"), command.getResponses().keySet());
         }
         var json = new ObjectMapper();
+        for (var action : Set.of("activate", "deactivate", "archive")) {
+            var command = actual.getPaths().get("/v1/companies/{companyId}/" + action).getPost();
+            assertFalse(command.getRequestBody().getRequired());
+            assertEquals(Set.of("200", "400", "404", "409", "412", "415", "500", "502", "503"), command.getResponses().keySet());
+            assertEquals("#/components/schemas/CompanyOperationalEnvelope", command.getResponses().get("200")
+                    .getContent().get("application/json").getSchema().get$ref());
+        }
         for (var example : expected.getComponents().getExamples().values()) {
             JsonNode value = json.valueToTree(example.getValue());
             assertTrue(value.isObject()); assertTrue(value.path("status").isInt());

@@ -2,6 +2,29 @@
 
 ## Status and scope
 
+### HU03 Company lifecycle decisions
+
+The repo-local `add-company-lifecycle-management` change defines three explicit
+commands: ACTIVATE (DRAFT/INACTIVE → ACTIVE), DEACTIVATE (ACTIVE → INACTIVE) and
+ARCHIVE (DRAFT/INACTIVE → ARCHIVED). `CompanyLifecyclePolicy` reuses CompanyStatus;
+terminality, redundancy and forbidden transitions remain distinct neutral reasons.
+`CompanyActivationPolicy` requires a current ACTIVE headquarters and an ACTIVE
+LEGAL_ENTITY; it does not change HU01 registration eligibility or require children.
+
+A new redundant command returns 409, while an equivalent accepted replay returns
+its original 200 before current preconditions, including after archival. The three
+`company.{activate,deactivate,archive}.v1` namespaces are independent. API owns
+status/code mappings; Application commands and failures contain no transport or
+persistence framework types. The result is the local operational CompanyRecord.
+
+Company → Site is the shared lock order. Activation releases local preparation
+before Party HTTP and resolves the current headquarters again under final
+protection. Company and Site revisions/audit remain independent: transitions
+write only Company, Site operativity remains derived, and Site replay keeps its
+historical value. Deactivate/archive/replay require no provider calls. These are
+architectural contracts; the change's acceptance record must separately establish
+executed SQL, HTTP, concurrency, packaged, native and OCI evidence.
+
 Central model completed and checked through LikeC4 MCP, CLI and Git on 2026-10-16.
 The existing [commit 5746268](https://github.com/astudilloalex/alex-astudillo-architecture/commit/5746268)
 provides the service, logical database, context and deployment baseline. The

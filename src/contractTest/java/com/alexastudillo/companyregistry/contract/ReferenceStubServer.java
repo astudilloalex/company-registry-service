@@ -25,6 +25,7 @@ public final class ReferenceStubServer implements AutoCloseable {
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, Reply> replies = new ConcurrentHashMap<>();
+    private final Map<String, Gate> gates = new ConcurrentHashMap<>();
     private final List<Request> requests = new CopyOnWriteArrayList<>();
 
     public ReferenceStubServer() throws java.io.IOException {
@@ -36,6 +37,13 @@ public final class ReferenceStubServer implements AutoCloseable {
             var path = exchange.getRequestURI().getPath();
             var query = exchange.getRequestURI().getRawQuery();
             requests.add(new Request(path, headers, query));
+            var gate = gates.remove(path);
+            if (gate != null) {
+                gate.arrived().countDown();
+                gate.reply().whenComplete((reply, failure) -> sendReply(exchange,
+                        failure == null ? reply : new Reply(503, "{}", 0)));
+                return;
+            }
             var reply = replies.getOrDefault(path + (query == null ? "" : "?" + query),
                     replies.getOrDefault(path, new Reply(404, "{\"status\":404,\"code\":\"not-found\"}", 0)));
             if (reply.delayMillis() > 0) {
@@ -73,6 +81,15 @@ public final class ReferenceStubServer implements AutoCloseable {
 
     public List<Request> requests() {
         return List.copyOf(requests);
+    }
+
+    /** Hold the next matching response without blocking a server thread or relying on sleeps. */
+    public record Gate(CountDownLatch arrived, CompletableFuture<Reply> reply) {}
+
+    public Gate holdNext(String path) {
+        var gate = new Gate(new CountDownLatch(1), new CompletableFuture<>());
+        if (gates.putIfAbsent(path, gate) != null) throw new IllegalStateException("Provider response already held");
+        return gate;
     }
 
     public void reset() {

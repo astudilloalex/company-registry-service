@@ -23,7 +23,13 @@ Company and Site are distinct aggregates. Site's parent Company/tenant and origi
 | Company | DRAFT→ACTIVE/ARCHIVED; ACTIVE→INACTIVE; INACTIVE→ACTIVE/ARCHIVED | ARCHIVED |
 | Site | DRAFT→ACTIVE/CLOSED; ACTIVE→INACTIVE/CLOSED; INACTIVE→ACTIVE/CLOSED | CLOSED |
 
-Terminal records reject ordinary changes, not just status changes. A same-state request is not an effective transition; future command contracts distinguish no-op from accepted idempotent replay explicitly.
+Terminal records reject ordinary changes, not just status changes. A new Company
+activate on ACTIVE or deactivate on INACTIVE returns 409
+`company-already-in-requested-state` without consuming its key or changing audit,
+version or events. ARCHIVED has precedence over redundancy and returns 409
+`company-archived` for all three commands. An equivalent durable replay returns
+its original 200 before current ownership/version/state checks, even after another
+cycle or archival. Company PATCH retains its separate no-op contract.
 
 Company activation requires an existing ACTIVE LEGAL_ENTITY in its tenant and exactly one current legal HEADQUARTERS with Site ACTIVE. A Site may become ACTIVE under Company DRAFT or INACTIVE, enabling preparation of the first headquarters and later Company reactivation. Company ARCHIVED prevents Site activation. Effective operativity is derived from `Company ACTIVE && Site ACTIVE`; never store a separate mutable flag or cascade Company deactivation into Site status updates.
 
@@ -31,7 +37,13 @@ Company activation requires an existing ACTIVE LEGAL_ENTITY in its tenant and ex
 
 HEADQUARTERS means legal headquarters. At most one non-CLOSED headquarters exists per Company; DRAFT and INACTIVE also occupy the unique slot. Closed historical headquarters do not. The partial unique index enforces only the maximum, not the full Company activation prerequisite.
 
-Future Company activation and conflicting headquarters mutations lock **Company → Site**, then revalidate local state under the same transaction. No reverse lock order. Provider HTTP validation must not hold long-lived database locks; a later Party change is not covered by distributed atomicity.
+Company activation and conflicting headquarters mutations lock **Company → Site**,
+then revalidate local state under the same transaction. No reverse lock order.
+Activation preparation releases its transaction/session before Party HTTP; final
+acceptance resolves the current non-CLOSED headquarters again, since Site writes
+do not increment Company.version. A later Party change is not covered by
+distributed atomicity. Deactivate and archive are local operations; neither
+changes any Site, child, Site revision or Site audit.
 
 An ACTIVE Company cannot lose, deactivate, close or reclassify its only active headquarters. V1 replacement is: deactivate Company → close old headquarters → register replacement → activate replacement → reactivate Company. No atomic replacement workflow is added in T00.
 

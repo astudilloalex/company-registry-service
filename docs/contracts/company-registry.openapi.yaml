@@ -961,6 +961,675 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SiteMutationErrorResponse'
+  /v1/companies/{companyId}/activate:
+    post:
+      operationId: activateCompany
+      summary: Activate Company or replay original acceptance
+      description: 'DRAFT/INACTIVE to ACTIVE; requires current ACTIVE HEADQUARTERS and ACTIVE LEGAL_ENTITY Party.
+        New redundant command is 409; ARCHIVED terminal. Precedence: input, completion, ownership, version, state,
+        headquarters, Party. Revalidates locally after remote validation without holding locks during HTTP. Replay
+        precedes current preconditions and providers. One Company increment, no Site mutation.'
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptyCompanyCommand'
+            example: {}
+      responses:
+        '200':
+          description: Original accepted operational Company; replay retains original audit/version and omits null
+            optionals.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyOperationalEnvelope'
+        '400':
+          description: if-match-required; if-match-duplicated; if-match-invalid; company-id-invalid; idempotency-key-duplicated;
+            idempotency-key-blank; idempotency-key-too-long; request-body-invalid-json; request-body-must-be-object;
+            request-body-contains-unknown-fields. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                if-match-required:
+                  value:
+                    status: 400
+                    code: if-match-required
+                if-match-duplicated:
+                  value:
+                    status: 400
+                    code: if-match-duplicated
+                if-match-invalid:
+                  value:
+                    status: 400
+                    code: if-match-invalid
+                company-id-invalid:
+                  value:
+                    status: 400
+                    code: company-id-invalid
+                idempotency-key-duplicated:
+                  value:
+                    status: 400
+                    code: idempotency-key-duplicated
+                idempotency-key-blank:
+                  value:
+                    status: 400
+                    code: idempotency-key-blank
+                idempotency-key-too-long:
+                  value:
+                    status: 400
+                    code: idempotency-key-too-long
+                request-body-invalid-json:
+                  value:
+                    status: 400
+                    code: request-body-invalid-json
+                request-body-must-be-object:
+                  value:
+                    status: 400
+                    code: request-body-must-be-object
+                request-body-contains-unknown-fields:
+                  value:
+                    status: 400
+                    code: request-body-contains-unknown-fields
+        '404':
+          description: company-not-found; party-reference-not-found. Exact status/code envelope; validated current
+            Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                company-not-found:
+                  value:
+                    status: 404
+                    code: company-not-found
+                party-reference-not-found:
+                  value:
+                    status: 404
+                    code: party-reference-not-found
+        '409':
+          description: company-archived; company-already-in-requested-state; company-transition-not-allowed; legal-headquarters-required;
+            active-headquarters-required; party-must-be-legal-entity; party-must-be-active; idempotency-key-already-used-with-different-request.
+            Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                company-archived:
+                  value:
+                    status: 409
+                    code: company-archived
+                company-already-in-requested-state:
+                  value:
+                    status: 409
+                    code: company-already-in-requested-state
+                company-transition-not-allowed:
+                  value:
+                    status: 409
+                    code: company-transition-not-allowed
+                legal-headquarters-required:
+                  value:
+                    status: 409
+                    code: legal-headquarters-required
+                active-headquarters-required:
+                  value:
+                    status: 409
+                    code: active-headquarters-required
+                party-must-be-legal-entity:
+                  value:
+                    status: 409
+                    code: party-must-be-legal-entity
+                party-must-be-active:
+                  value:
+                    status: 409
+                    code: party-must-be-active
+                idempotency-key-already-used-with-different-request:
+                  value:
+                    status: 409
+                    code: idempotency-key-already-used-with-different-request
+        '412':
+          description: aggregate-version-mismatch. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                aggregate-version-mismatch:
+                  value:
+                    status: 412
+                    code: aggregate-version-mismatch
+        '415':
+          description: unsupported-media-type. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                unsupported-media-type:
+                  value:
+                    status: 415
+                    code: unsupported-media-type
+        '500':
+          description: server-error. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                server-error:
+                  value:
+                    status: 500
+                    code: server-error
+        '502':
+          description: dependency-response-invalid. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                dependency-response-invalid:
+                  value:
+                    status: 502
+                    code: dependency-response-invalid
+        '503':
+          description: dependency-unavailable. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                dependency-unavailable:
+                  value:
+                    status: 503
+                    code: dependency-unavailable
+  /v1/companies/{companyId}/deactivate:
+    post:
+      operationId: deactivateCompany
+      summary: Deactivate Company or replay original acceptance
+      description: 'ACTIVE to INACTIVE; local operation without providers. New redundant command is 409; ARCHIVED
+        terminal. Precedence: input, completion, ownership, version, state, headquarters, Party. Revalidates locally
+        after remote validation without holding locks during HTTP. Replay precedes current preconditions and providers.
+        One Company increment, no Site mutation.'
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptyCompanyCommand'
+            example: {}
+      responses:
+        '200':
+          description: Original accepted operational Company; replay retains original audit/version and omits null
+            optionals.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyOperationalEnvelope'
+        '400':
+          description: if-match-required; if-match-duplicated; if-match-invalid; company-id-invalid; idempotency-key-duplicated;
+            idempotency-key-blank; idempotency-key-too-long; request-body-invalid-json; request-body-must-be-object;
+            request-body-contains-unknown-fields. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                if-match-required:
+                  value:
+                    status: 400
+                    code: if-match-required
+                if-match-duplicated:
+                  value:
+                    status: 400
+                    code: if-match-duplicated
+                if-match-invalid:
+                  value:
+                    status: 400
+                    code: if-match-invalid
+                company-id-invalid:
+                  value:
+                    status: 400
+                    code: company-id-invalid
+                idempotency-key-duplicated:
+                  value:
+                    status: 400
+                    code: idempotency-key-duplicated
+                idempotency-key-blank:
+                  value:
+                    status: 400
+                    code: idempotency-key-blank
+                idempotency-key-too-long:
+                  value:
+                    status: 400
+                    code: idempotency-key-too-long
+                request-body-invalid-json:
+                  value:
+                    status: 400
+                    code: request-body-invalid-json
+                request-body-must-be-object:
+                  value:
+                    status: 400
+                    code: request-body-must-be-object
+                request-body-contains-unknown-fields:
+                  value:
+                    status: 400
+                    code: request-body-contains-unknown-fields
+        '404':
+          description: company-not-found; party-reference-not-found. Exact status/code envelope; validated current
+            Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                company-not-found:
+                  value:
+                    status: 404
+                    code: company-not-found
+                party-reference-not-found:
+                  value:
+                    status: 404
+                    code: party-reference-not-found
+        '409':
+          description: company-archived; company-already-in-requested-state; company-transition-not-allowed; legal-headquarters-required;
+            active-headquarters-required; party-must-be-legal-entity; party-must-be-active; idempotency-key-already-used-with-different-request.
+            Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                company-archived:
+                  value:
+                    status: 409
+                    code: company-archived
+                company-already-in-requested-state:
+                  value:
+                    status: 409
+                    code: company-already-in-requested-state
+                company-transition-not-allowed:
+                  value:
+                    status: 409
+                    code: company-transition-not-allowed
+                legal-headquarters-required:
+                  value:
+                    status: 409
+                    code: legal-headquarters-required
+                active-headquarters-required:
+                  value:
+                    status: 409
+                    code: active-headquarters-required
+                party-must-be-legal-entity:
+                  value:
+                    status: 409
+                    code: party-must-be-legal-entity
+                party-must-be-active:
+                  value:
+                    status: 409
+                    code: party-must-be-active
+                idempotency-key-already-used-with-different-request:
+                  value:
+                    status: 409
+                    code: idempotency-key-already-used-with-different-request
+        '412':
+          description: aggregate-version-mismatch. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                aggregate-version-mismatch:
+                  value:
+                    status: 412
+                    code: aggregate-version-mismatch
+        '415':
+          description: unsupported-media-type. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                unsupported-media-type:
+                  value:
+                    status: 415
+                    code: unsupported-media-type
+        '500':
+          description: server-error. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                server-error:
+                  value:
+                    status: 500
+                    code: server-error
+        '502':
+          description: dependency-response-invalid. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                dependency-response-invalid:
+                  value:
+                    status: 502
+                    code: dependency-response-invalid
+        '503':
+          description: dependency-unavailable. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                dependency-unavailable:
+                  value:
+                    status: 503
+                    code: dependency-unavailable
+  /v1/companies/{companyId}/archive:
+    post:
+      operationId: archiveCompany
+      summary: Archive Company or replay original acceptance
+      description: 'DRAFT/INACTIVE to ARCHIVED; local operation preserving Sites and identities. New redundant command
+        is 409; ARCHIVED terminal. Precedence: input, completion, ownership, version, state, headquarters, Party.
+        Revalidates locally after remote validation without holding locks during HTTP. Replay precedes current preconditions
+        and providers. One Company increment, no Site mutation.'
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptyCompanyCommand'
+            example: {}
+      responses:
+        '200':
+          description: Original accepted operational Company; replay retains original audit/version and omits null
+            optionals.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyOperationalEnvelope'
+        '400':
+          description: if-match-required; if-match-duplicated; if-match-invalid; company-id-invalid; idempotency-key-duplicated;
+            idempotency-key-blank; idempotency-key-too-long; request-body-invalid-json; request-body-must-be-object;
+            request-body-contains-unknown-fields. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                if-match-required:
+                  value:
+                    status: 400
+                    code: if-match-required
+                if-match-duplicated:
+                  value:
+                    status: 400
+                    code: if-match-duplicated
+                if-match-invalid:
+                  value:
+                    status: 400
+                    code: if-match-invalid
+                company-id-invalid:
+                  value:
+                    status: 400
+                    code: company-id-invalid
+                idempotency-key-duplicated:
+                  value:
+                    status: 400
+                    code: idempotency-key-duplicated
+                idempotency-key-blank:
+                  value:
+                    status: 400
+                    code: idempotency-key-blank
+                idempotency-key-too-long:
+                  value:
+                    status: 400
+                    code: idempotency-key-too-long
+                request-body-invalid-json:
+                  value:
+                    status: 400
+                    code: request-body-invalid-json
+                request-body-must-be-object:
+                  value:
+                    status: 400
+                    code: request-body-must-be-object
+                request-body-contains-unknown-fields:
+                  value:
+                    status: 400
+                    code: request-body-contains-unknown-fields
+        '404':
+          description: company-not-found; party-reference-not-found. Exact status/code envelope; validated current
+            Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                company-not-found:
+                  value:
+                    status: 404
+                    code: company-not-found
+                party-reference-not-found:
+                  value:
+                    status: 404
+                    code: party-reference-not-found
+        '409':
+          description: company-archived; company-already-in-requested-state; company-transition-not-allowed; legal-headquarters-required;
+            active-headquarters-required; party-must-be-legal-entity; party-must-be-active; idempotency-key-already-used-with-different-request.
+            Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                company-archived:
+                  value:
+                    status: 409
+                    code: company-archived
+                company-already-in-requested-state:
+                  value:
+                    status: 409
+                    code: company-already-in-requested-state
+                company-transition-not-allowed:
+                  value:
+                    status: 409
+                    code: company-transition-not-allowed
+                legal-headquarters-required:
+                  value:
+                    status: 409
+                    code: legal-headquarters-required
+                active-headquarters-required:
+                  value:
+                    status: 409
+                    code: active-headquarters-required
+                party-must-be-legal-entity:
+                  value:
+                    status: 409
+                    code: party-must-be-legal-entity
+                party-must-be-active:
+                  value:
+                    status: 409
+                    code: party-must-be-active
+                idempotency-key-already-used-with-different-request:
+                  value:
+                    status: 409
+                    code: idempotency-key-already-used-with-different-request
+        '412':
+          description: aggregate-version-mismatch. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                aggregate-version-mismatch:
+                  value:
+                    status: 412
+                    code: aggregate-version-mismatch
+        '415':
+          description: unsupported-media-type. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                unsupported-media-type:
+                  value:
+                    status: 415
+                    code: unsupported-media-type
+        '500':
+          description: server-error. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                server-error:
+                  value:
+                    status: 500
+                    code: server-error
+        '502':
+          description: dependency-response-invalid. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                dependency-response-invalid:
+                  value:
+                    status: 502
+                    code: dependency-response-invalid
+        '503':
+          description: dependency-unavailable. Exact status/code envelope; validated current Process-Id preserved.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyLifecycleErrorResponse'
+              examples:
+                dependency-unavailable:
+                  value:
+                    status: 503
+                    code: dependency-unavailable
 components:
   parameters:
     TenantId:
@@ -1060,6 +1729,57 @@ components:
         format: uuid
         pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
   schemas:
+    EmptyCompanyCommand:
+      type: object
+      additionalProperties: false
+      description: Absent body and {} are equivalent empty intent. Reject null, nonobjects, any properties, malformed
+        JSON and trailing tokens before replay.
+    CompanyLifecycleErrorResponse:
+      type: object
+      required:
+      - status
+      - code
+      additionalProperties: false
+      properties:
+        status:
+          type: integer
+          enum:
+          - 400
+          - 404
+          - 409
+          - 412
+          - 415
+          - 500
+          - 502
+          - 503
+        code:
+          type: string
+          enum:
+          - if-match-required
+          - if-match-duplicated
+          - if-match-invalid
+          - company-id-invalid
+          - idempotency-key-duplicated
+          - idempotency-key-blank
+          - idempotency-key-too-long
+          - request-body-invalid-json
+          - request-body-must-be-object
+          - request-body-contains-unknown-fields
+          - company-not-found
+          - party-reference-not-found
+          - company-archived
+          - company-already-in-requested-state
+          - company-transition-not-allowed
+          - legal-headquarters-required
+          - active-headquarters-required
+          - party-must-be-legal-entity
+          - party-must-be-active
+          - idempotency-key-already-used-with-different-request
+          - aggregate-version-mismatch
+          - unsupported-media-type
+          - server-error
+          - dependency-response-invalid
+          - dependency-unavailable
     UpdateSiteRequest:
       type: object
       properties:

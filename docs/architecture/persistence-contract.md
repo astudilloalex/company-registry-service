@@ -1,5 +1,57 @@
 # Reactive persistence boundary
 
+## HU03 transition storage and V6
+
+HU03 fingerprints bind ordered fingerprintVersion (numeric 1), canonical tenantId,
+operation, canonical companyId, decimal-string expectedVersion and request `{}`.
+The three operation scopes are independent. Body absent/`{}` are equivalent;
+actor/process/key/outbox mode and Party/matrix observations are excluded. A fresh
+MAC is used per request with the existing external keyring. K1→K2 rotation retains
+both original secrets and selects stored policy/K1 for old completions. No TTL,
+cleanup or active-key fallback applies to accepted results or historical material.
+Unknown policy/key/format or corrupt snapshots fail sanitized, without repair.
+
+LifecycleResultCodec is independent of the HU02 codec. It retains explicit nulls
+and strict UUID/string/integer/enum/UTC microsecond types, validates tenant/Company,
+operation target and exactly expected+1 (without overflow), and requires completion
+date/actor to match snapshot updatedAt/updatedBy. Its response omits null optionals.
+The existing CompanyRecord/Audit/Company/AggregateVersion native metadata is reused,
+with CompanyStatus registered at the Infrastructure boundary.
+
+Lookup precedes new acceptance. Activation preparation locks Company, rechecks
+completion, checks ownership/revision/transition, then locks/resolves headquarters.
+It writes nothing and finalizes before Party HTTP. Both returned Party facts and
+expected dependency failures remain neutral until final acceptance repeats that
+entire local sequence. Replay wins over current state and a later remote failure.
+Deactivation/archive use one local acceptance transaction and never call providers.
+One LifecycleDeadline starts on subscription and keeps running through HTTP,
+commit, cancellation cleanup and recovery; each boundary derives its remaining
+budget. Existing DatabaseBudget behavior is unchanged. AtomicOperation provides
+server statement/lock timeouts and cleanup reserve. Recovery only reads completion
+after failed transaction finalization/session closure; uncertain finalization or
+exhaustion returns 503 and never resubscribes a write.
+
+V6 adds `ck_company_idempotency_lifecycle_metadata` to the existing completion
+table. The three Company lifecycle namespaces require site_id null, nonnull
+nonnegative expected revision, status 200, positive fingerprint policy and valid
+key ID. Before installation incompatible history stops with 23514 and a controlled
+inspection hint. Snapshots/provenance are preserved; V1–V5 stay immutable. Six
+application tables, tenant-qualified foreign keys, the current-headquarters partial
+unique index and the runtime DML/migrator DDL separation remain unchanged.
+
+`CompanyRepository.transition` is distinct from HU02 information update. It
+qualifies tenant/id/expected revision/observed source status and writes only status,
+updatedAt/updatedBy and version=version+1 through bulk HQL. The result revision must
+be exactly expected+1; overflow is rejected before a write. Managed entities are
+not mutated, so @Version cannot add another increment. A fresh session must verify
+the persisted result. Zero rows yields the neutral stale-version failure.
+
+`SiteRepository.currentHeadquartersForUpdate` runs after Company protection,
+qualifies tenant/Company, excludes CLOSED and locks the current HEADQUARTERS.
+Absence is protected against competing creation through the parent lock. Multiple
+current rows are an internal integrity failure. Acquiring either lock never
+changes audit/version or children, and Company transitions do not write Sites.
+
 ## HU05 schema extension
 
 V5 adds `ck_company_idempotency_site_mutation_metadata` without changing V1–V4,
@@ -220,6 +272,6 @@ observable lock barriers. Its Company activation/archival and address/contact wr
 are test-only fixtures following Company → Site. Child fixtures compare the common
 Site revision, insert a child and increment Site once in the same transaction; a
 stale child attempt writes nothing. These tests establish local lock/revision
-compatibility only. They do not implement HU03/HU06/HU07 endpoints, remote Party
+compatibility only. They do not implement HU06/HU07 endpoints; HU03 adds separate protected activation with remote Party
 eligibility or distributed provider atomicity. Production artifacts contain none of
 these fixture classes; actual endpoint integration remains owned by those stories.

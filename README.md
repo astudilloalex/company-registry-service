@@ -1,8 +1,39 @@
 # company-registry-service
 
+## Company lifecycle (HU03)
+
+POST `/v1/companies/{companyId}/{activate,deactivate,archive}` takes business
+context headers, decimal Company `If-Match`, optional opaque `Idempotency-Key`
+and either no body or `{}`. It returns the complete operational Company with 200.
+Activation requires an ACTIVE LEGAL_ENTITY Party and current ACTIVE HEADQUARTERS.
+Deactivation and archival are local; Site status, revision, audit and children stay
+independent. New redundant commands return 409. ARCHIVED is terminal.
+
+Replay scopes are `(tenant, operation, key)` with independent
+`company.activate.v1`, `company.deactivate.v1`, `company.archive.v1` namespaces.
+The original If-Match belongs to the intent; actor/process and observations do not.
+Absent body and `{}` are equivalent. Accepted results, format/policy versions and
+historical signing keys have no TTL or automatic deletion. During K1→K2 rotation,
+configure both original secrets on every instance, then change only the active ID
+to K2. Old results are verified with stored K1; missing material fails with a
+sanitized 500. Never overwrite a key ID's secret. Replays preserve their original
+result after another cycle or archival, with the current response Process-Id.
+
+`company-registry.lifecycle.wait-budget` / `COMPANY_LIFECYCLE_WAIT_BUDGET` defaults
+to `10s`, must be positive and representable in nanoseconds. One monotonic budget
+covers lookup, protected preparation, Party HTTP, final acceptance, commit, cleanup
+and recovery. Party transport timeouts also apply. No lock/session crosses HTTP.
+An unresolved result returns 503; recovery never repeats a transition and starts
+only after confirmed transaction finalization. Later Party changes do not trigger
+automatic Company changes or imply distributed atomicity.
+
+Events are company.activated.v1, company.deactivated.v1 and company.updated.v1
+(ARCHIVED). Disabled stores none; stored-only/published store the applicable fact
+atomically with Company and its optional completion. Delivery remains HU08.
+
 ## Foundation status and prerequisites
 
-Java 25, Gradle wrapper 9.7.0, Quarkus 3.40.1, PostgreSQL 18 and Podman. Production and verification native binaries and the non-root UBI 9 image have passed their process checks; see [native evidence and commands](docs/operations/native-verification.md). HU01 implements Company registration, durable original-response replay and enriched current retrieval/listing; other business workflows remain in later HU. See [architecture decisions](docs/architecture/adr-001-reactive-native-foundation.md), [invariants](docs/architecture/adr-002-company-site-invariants.md), [normalization](docs/architecture/text-normalization.md) and [dependency credentials](docs/architecture/dependencies.md).
+Java 25, Gradle wrapper 9.7.0, Quarkus 3.40.1, PostgreSQL 18 and Podman. Production and verification native binaries and the non-root UBI 9 image have passed their process checks; see [native evidence and commands](docs/operations/native-verification.md). HU01 implements Company registration, durable original-response replay and enriched current retrieval/listing; HU02/HU03 and HU04/HU05 provide Company information/lifecycle and Site registration/retrieval/lifecycle; address/contact commands and publication remain later HU. See [architecture decisions](docs/architecture/adr-001-reactive-native-foundation.md), [invariants](docs/architecture/adr-002-company-site-invariants.md), [normalization](docs/architecture/text-normalization.md) and [dependency credentials](docs/architecture/dependencies.md).
 
 HU01 production startup also requires an external fingerprint keyring and active key ID.
 See [key configuration](#hu01-fingerprint-keys) and the
@@ -239,7 +270,7 @@ the response deadline also bounds finalization that does not complete.
 Recovery after rollback checks the durable acceptance in
 a fresh session; unresolved uncertainty returns 503 and permits the same-key retry.
 Keep V4 and all accepted data/keys on application rollback, restoring a compatible
-version or suspending these routes. HU03/HU05 transitions remain unimplemented.
+version or suspending these routes. HU03 Company and HU05 Site transitions are implemented through explicit commands; see their lifecycle contracts.
 
 ### HU05 Site mutation persistence
 

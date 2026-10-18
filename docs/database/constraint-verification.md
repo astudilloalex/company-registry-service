@@ -3,6 +3,19 @@
 Authority: `src/main/resources/db/migration/V1__create_company_registry_schema.sql`.
 Diagram: [v1-scheme.dbml](v1-scheme.dbml). V1 remains unchanged.
 
+## V6 — Company lifecycle completion metadata
+
+Authority: `V6__enforce_company_lifecycle_completion_metadata.sql`, preserving V1–V5.
+
+| Constraint | Valid shape | Rejected INSERT/UPDATE |
+| --- | --- | --- |
+| `ck_company_idempotency_lifecycle_metadata` | company.activate.v1/company.deactivate.v1/company.archive.v1, null Site, nonnull nonnegative expected revision, status 200, positive fingerprint version and valid key ID | Site present, missing/negative revision, missing provenance or status other than 200 |
+
+V6 diagnoses incompatible historical HU03 metadata with SQLSTATE 23514 before
+adding its CHECK. It preserves original snapshots/provenance and all six tables;
+it never assigns a signing key or repairs history. Existing hash, JSON object,
+snapshot version, tenant/Company FK and PK constraints remain authoritative.
+
 ## V5 — Site mutation completion metadata
 
 Authority: `V5__enforce_site_mutation_completion_metadata.sql`, preserving V1–V4.

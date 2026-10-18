@@ -1,5 +1,24 @@
 # company.created.v1 handoff to HU08
 
+## HU03 lifecycle facts
+
+company.activated.v1 and company.deactivated.v1 use the same eleven-field envelope
+and seven-field operational update payload, constrained to ACTIVE and INACTIVE.
+Archival uses company.updated.v1 with ARCHIVED and the existing V1 schema; its
+separate archived example is packaged too. Producers enforce companyId=aggregateId,
+updatedAt=occurredAt, positive resulting Company revision, a distinct UUIDv7 eventId,
+original tenant/actor/process and explicit null causationId. Events contain no Party
+projection, Site, description/logo or idempotency material. Technical attempts and
+version start at zero in PENDING. There are no delivery timestamps/errors initially.
+
+HU08 delivers each original stored fact to exchange `company.events`, routing key
+equal to eventType (`company.activated.v1`, `company.deactivated.v1`,
+`company.updated.v1`). Keep eventId on redelivery; do not rebuild from current state.
+There is no company.archived.v1. At-least-once delivery and no global ordering remain
+the delivery contract. Claims/leases/scheduler/confirms/retries remain HU08. HU03
+requires no broker in any mode, stores none in disabled and one applicable event in
+stored-only/published, atomically even without an idempotency key.
+
 The schema and example describe exactly eleven envelope fields and seven payload
 fields. Producer checks additionally require companyId=aggregateId,
 createdAt=occurredAt, a distinct UUIDv7 eventId, aggregateVersion 0 and schema
