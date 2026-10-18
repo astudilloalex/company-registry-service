@@ -97,6 +97,10 @@ Una carrera de completado entre Companies diferentes puede ocurrir después de i
 
 Como detalle técnico inicial se usará `company-registry.site-registration.wait-budget`, variable `COMPANY_SITE_REGISTRATION_WAIT_BUDGET`, predeterminado 10s positivo y finito. Un único DatabaseBudget cubrirá consultas, espera del lock, escrituras, finalización y recuperación, aplicando checkpoints de statement_timeout/lock_timeout con tiempo restante. No se reiniciará el plazo por fase. Si se agotó, puede terminar en 503 y un reintento posterior resolver el resultado. Cancelación/limpieza no deben dejar una escritura suscrita por separado. Se reutiliza la clasificación transitoria de deadlock/serialización existente.
 
+El caso de uso impondrá además un deadline de suscripción desde la búsqueda inicial hasta el resultado final y rechazará una aceptación que llegue fuera del plazo. Cada fase atómica limitará adquisición, commit y espera de limpieza con su remanente; reservará el menor de 10% de ese tiempo y 100 ms para rollback/cierre normales. El trabajo que no termina fallará dentro de la transacción antes de consumir esa reserva. Los temporizadores y la cancelación volverán al contexto Vert.x propietario, y no se esperará indefinidamente una limpieza bloqueada. Vencer el deadline no demuestra rollback de un commit remoto: la respuesta será 503 y el reintento consultará la aceptación durable.
+
+El fallo neutral de plazo distinguirá una finalización aún no confirmada. Esa condición no permitirá abrir recuperación automática antes de cerrar la transacción; solamente un fallo con rollback/cierre confirmados podrá iniciar la sesión nueva de recuperación. El protocolo se conservará también en los casos Company que comparten el adaptador.
+
 Alternativas descartadas: recuperación en sesión fallida, devolver siempre conflicto ante timeout y reservas idempotentes solo en memoria no permiten la recuperación durable acordada.
 
 ### 6. Consultas con estado local coherente y sin locks de escritura

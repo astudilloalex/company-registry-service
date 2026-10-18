@@ -137,6 +137,10 @@ inside the transaction before that reserve; the outer deadline bounds stalled
 acquisition, finalization and cleanup as well. Timer/cancellation signals return
 to the owning Vert.x context, and cleanup is awaited only for the remaining
 phase time. There is one write subscription and no automatic creation retry.
+The deadline failure records that transaction finalization is still uncertain;
+it cannot enter automatic recovery in that session. Only failures emitted after
+confirmed rollback/closure may open fresh-session recovery. This rule also
+preserves the shared Company operations' recovery protocol.
 An expired deadline returns 503 without asserting that a remote commit rolled
 back: a later retry resolves its durable acceptance. Deadlock and serialization
 aborts are transient uncertainty, not an invented business conflict.

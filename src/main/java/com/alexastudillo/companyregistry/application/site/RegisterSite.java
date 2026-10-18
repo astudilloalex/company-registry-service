@@ -13,6 +13,7 @@ import java.util.function.Supplier;
  * session close.
  */
 public final class RegisterSite {
+    private static final Duration TIMER_GRANULARITY = Duration.ofMillis(1);
     public record Storage(AtomicOperation atomic, CompanyRepository companies, SiteRepository sites,
             SiteCreationEvents events) {
     }
@@ -46,13 +47,22 @@ public final class RegisterSite {
 
     public Uni<SiteRegistration.Result> execute(SiteRegistration.Command command) {
         return Uni.createFrom().deferred(() -> {
+            long started = System.nanoTime();
             var budget = new DatabaseBudget(waitBudget);
             var key = new CompletionKey(command.context().tenantId(), SiteRegistration.OPERATION,
                     command.idempotencyKey());
             return database(false, budget, () -> query(budget, () -> idempotency.completions().find(key)))
                     .chain(stored -> stored != null ? Uni.createFrom().item(replay(command, stored))
-                            : persist(command, key, budget));
-        }).ifNoItem().after(waitBudget).failWith(() -> new SiteFailure(SiteFailure.Kind.UNAVAILABLE))
+                            : persist(command, key, budget))
+                    .invoke(_ -> {
+                        if (System.nanoTime() - started >= waitBudget.toNanos()) {
+                            throw new SiteFailure(SiteFailure.Kind.UNAVAILABLE);
+                        }
+                    });
+        }).ifNoItem().after(waitBudget.compareTo(TIMER_GRANULARITY) < 0 ? TIMER_GRANULARITY : waitBudget)
+                .failWith(() -> new SiteFailure(SiteFailure.Kind.UNAVAILABLE))
+                .onFailure(failure -> failure instanceof PersistenceFailure persistence && !persistence.transactionFinalized())
+                .transform(_ -> new SiteFailure(SiteFailure.Kind.UNAVAILABLE))
                 .onFailure(
                 failure -> failure instanceof com.alexastudillo.companyregistry.application.company.CompanyFailure company
                         && company
@@ -162,7 +172,7 @@ public final class RegisterSite {
     }
 
     private boolean recoverable(Throwable failure) {
-        return failure instanceof PersistenceFailure p && (p.kind() == PersistenceFailure.Kind.DUPLICATE
+        return failure instanceof PersistenceFailure p && p.transactionFinalized() && (p.kind() == PersistenceFailure.Kind.DUPLICATE
                 || p.kind() == PersistenceFailure.Kind.UNAVAILABLE);
     }
 

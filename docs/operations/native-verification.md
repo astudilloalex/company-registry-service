@@ -306,3 +306,27 @@ UID 1001, refused provider/broker URLs and owns only its disposable containers.
 
 See [HU04 acceptance](hu04-acceptance-review.md) for executed results, artifact
 identities and any pending checks. These commands alone are not execution evidence.
+
+### HU04 deadline and pagination re-verification
+
+After resolving verification warnings W1/W2, the final native runner was rebuilt
+with the same documented 5 GiB/two-thread settings. Final evidence lives in
+`build/hu04-evidence/fix-final-native/` and `fix-final-oci/`; the full JVM regression
+is in `fix-final-jvm/`. Use `-Phu04EvidenceRun=fix-final-native` with the isolated
+results init script and `quarkusIntTest -x quarkusBuild` to select the new report
+location. Rebuild the image with `Dockerfile.native-micro`, then run:
+
+```sh
+EVIDENCE_DIR=build/hu04-evidence/fix-final-oci python3 -u docs/operations/verify-hu04-native-image.py
+```
+
+The image harness now configures a 2 s Site-registration deadline and observes a
+real COMMIT waiting on an external PostgreSQL advisory-lock fixture. Disabled,
+stored-only and published each returned 503 in about 2.00 s, then same-key retry
+and replay retained one Site/completion and the mode-appropriate zero/one event.
+The fixture is removed outside the productive image. UID 1001, original
+restart/rotation/archival replay and no-provider checks also passed. The productive
+native process suites executed seven checks with no failures/errors; four
+verification-fixture checks remain intentionally excluded from that artifact.
+The accepted runner/image hashes and exact per-mode times are recorded in
+[hu04-acceptance-review.md](hu04-acceptance-review.md).

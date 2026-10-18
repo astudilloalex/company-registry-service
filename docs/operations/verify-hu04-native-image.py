@@ -4,17 +4,20 @@ import hashlib
 import json
 import os
 import pathlib
+import select
 import socket
 import subprocess
 import time
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = pathlib.Path.cwd()
 EVIDENCE = pathlib.Path(os.environ.get('EVIDENCE_DIR', ROOT / 'build' / 'hu04-evidence' / 'oci'))
 EVIDENCE.mkdir(parents=True, exist_ok=True)
 IMAGE = 'company-registry-service:hu04-native'
+ON_ERROR_STOP = 'ON_ERROR_STOP=1'
 suffix = uuid.uuid4().hex[:10]
 database = 'codex-hu04-db-' + suffix
 application = None
@@ -25,7 +28,7 @@ def podman(*args, **kwargs):
 
 
 def sql(statement):
-    return podman('exec', database, 'psql', '-v', 'ON_ERROR_STOP=1', '-At', '-U', 'postgres', '-d', 'hu04', '-c', statement)
+    return podman('exec', database, 'psql', '-v', ON_ERROR_STOP, '-At', '-U', 'postgres', '-d', 'hu04', '-c', statement)
 
 
 def request(base, path, method='GET', body=None, headers=None):
@@ -50,6 +53,7 @@ def start(mode, active):
            'DB_JDBC_URL': f'jdbc:postgresql://127.0.0.1:{database_port}/hu04',
            'FLYWAY_DB_USERNAME': 'company_registry_migration', 'FLYWAY_DB_PASSWORD': 'oci_migration_test',
            'COMPANY_OUTBOX_MODE': mode, 'PARTY_REGISTRY_BASE_URL': 'http://127.0.0.1:9',
+           'COMPANY_SITE_REGISTRATION_WAIT_BUDGET': '2s',
            'GEOGRAPHIC_REFERENCE_BASE_URL': 'http://127.0.0.1:9',
            'RABBITMQ_HOST': '127.0.0.1', 'RABBITMQ_PORT': '9'}
     args = ['run', '-d', '--name', application, '--network', 'host']
@@ -80,6 +84,59 @@ def stop(log_name):
         application = None
 
 
+def verify_commit_deadline(base, mode):
+    tenant = str(uuid.uuid4())
+    company = sql(f"INSERT INTO companies(tenant_id,party_id,code,operating_name,created_by,updated_by) VALUES('{tenant}',uuidv7(),'DEADLINE','DEADLINE','Creator','Creator') RETURNING id").splitlines()[0]
+    path = '/v1/companies/' + company + '/sites'
+    headers = {'Tenant-Id': tenant, 'Process-Id': str(uuid.uuid4()), 'User-Id': 'Deadline-Actor', 'Idempotency-Key': 'deadline'}
+    body = {'code': 'DEADLINE', 'name': 'Deadline'}
+    name = 'hu04_commit_' + uuid.uuid4().hex
+    lock_key = uuid.uuid4().int % (2**63)
+    holder = subprocess.Popen(['podman', 'exec', '-i', database, 'psql', '-XqAt', '-v', ON_ERROR_STOP,
+                               '-U', 'postgres', '-d', 'hu04'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, bufsize=1)
+    sql(f"CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.tenant_id='{tenant}'::uuid THEN PERFORM pg_advisory_xact_lock({lock_key}); END IF; RETURN NEW; END $$")
+    sql(f"CREATE CONSTRAINT TRIGGER {name} AFTER INSERT ON company_sites DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION {name}()")
+    try:
+        holder.stdin.write(f"BEGIN; DO $$ BEGIN PERFORM pg_advisory_xact_lock({lock_key}); END $$;\n\\echo HU04_LOCK_HELD\n")
+        holder.stdin.flush()
+        deadline = time.monotonic() + 10
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0 or not select.select([holder.stdout], [], [], left)[0]:
+                raise RuntimeError('The native commit fixture did not acquire its lock')
+            if holder.stdout.readline().strip() == 'HU04_LOCK_HELD':
+                break
+        with ThreadPoolExecutor(max_workers=1) as calls:
+            started = time.monotonic()
+            pending = calls.submit(request, base, path, 'POST', body, headers)
+            observed = False
+            while time.monotonic() - started < 1.5:
+                if sql("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND NOT granted") != '0':
+                    observed = True
+                    break
+                if pending.done():
+                    break
+            assert observed, 'The native COMMIT never reached the observed lock barrier'
+            response = pending.result(timeout=5)
+            elapsed = time.monotonic() - started
+        assert response == (503, {'status': 503, 'code': 'dependency-unavailable'}), response
+        assert elapsed < 3, elapsed
+    finally:
+        try:
+            holder.communicate('ROLLBACK;\n\\q\n', timeout=10)
+        except subprocess.TimeoutExpired:
+            holder.kill()
+            holder.communicate()
+        sql(f"DROP TRIGGER {name} ON company_sites; DROP FUNCTION {name}()")
+    status, accepted = request(base, path, 'POST', body, headers)
+    assert status == 201, accepted
+    assert request(base, path, 'POST', body, headers) == (201, accepted)
+    counts = sql(f"SELECT (SELECT count(*) FROM company_sites WHERE tenant_id='{tenant}'),(SELECT count(*) FROM company_idempotency_records WHERE tenant_id='{tenant}'),(SELECT count(*) FROM company_outbox_events WHERE tenant_id='{tenant}')")
+    assert counts == ('1|1|0' if mode == 'disabled' else '1|1|1'), counts
+    return {'budgetSeconds': 2, 'elapsedSeconds': round(elapsed, 3), 'commitLockObserved': observed, 'httpStatus': 503, 'sameKeyReplay': True, 'counts': counts}
+
+
 report = {'image': IMAGE, 'modes': [], 'runnerSha256': hashlib.sha256((ROOT / 'build/company-registry-service-1.0.0-SNAPSHOT-runner').read_bytes()).hexdigest()}
 with socket.socket() as refused:
     refused.settimeout(1)
@@ -104,7 +161,7 @@ try:
         time.sleep(.2)
     else:
         raise RuntimeError('HU04 database did not start')
-    podman('exec', '-i', database, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'hu04', input=(ROOT / 'docs/database/bootstrap-local.sql').read_text())
+    podman('exec', '-i', database, 'psql', '-v', ON_ERROR_STOP, '-U', 'postgres', '-d', 'hu04', input=(ROOT / 'docs/database/bootstrap-local.sql').read_text())
     database_port = podman('port', database, '5432/tcp').rsplit(':', 1)[1]
     for mode in ['disabled', 'stored-only', 'published']:
         base = start(mode, 'oci-k1')
@@ -155,6 +212,7 @@ try:
                 assert event['aggregate_type'] == 'COMPANY_SITE' and event['aggregate_version'] == 0
                 assert event['payload']['siteId'] == event['aggregate_id'] and event['event_type'] == 'company.site.created.v1'
                 assert event['payload']['createdBy'] == 'Actor-aB' and event['causation_id'] is None
+        commit_deadline = verify_commit_deadline(base, mode)
         stop(f'{mode}-original.log')
         restart_mode = 'published' if mode == 'disabled' else 'disabled'
         base = start(restart_mode, 'oci-k2')
@@ -165,7 +223,7 @@ try:
         assert sql(f"SELECT version FROM companies WHERE id='{company}'") == '1'
         assert counts == sql(f"SELECT (SELECT count(*) FROM companies WHERE tenant_id='{tenant}'),(SELECT count(*) FROM company_idempotency_records WHERE tenant_id='{tenant}'),(SELECT count(*) FROM company_outbox_events WHERE tenant_id='{tenant}');")
         stop(f'{mode}-restarted.log')
-        report['modes'].append({'mode': mode, 'restartMode': restart_mode, 'counts': counts, 'replayAfterRestartRotationArchival': True, 'providers': 'connection refused', 'broker': '127.0.0.1:9', 'user': '1001'})
+        report['modes'].append({'mode': mode, 'restartMode': restart_mode, 'counts': counts, 'replayAfterRestartRotationArchival': True, 'commitDeadline': commit_deadline, 'providers': 'connection refused', 'broker': '127.0.0.1:9', 'user': '1001'})
     (EVIDENCE / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))
 finally:

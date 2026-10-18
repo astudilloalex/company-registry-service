@@ -4,6 +4,61 @@ Change: `add-company-site-registration-and-retrieval` (spec-driven),
 [HU04 / issue #6](https://github.com/astudilloalex/company-registry-service/issues/6).
 Review date: 2026-10-17, America/Guayaquil.
 
+## Reverification after HU04 warnings W1/W2
+
+Both warnings are resolved. The request now has one end-to-end deadline, a late-result
+check and bounded atomic acquisition/finalization/cleanup. Atomic work reserves the
+smaller of 10% of remaining time and 100 ms for normal rollback/closure. Timeout
+signals stay on the owning Vert.x context; sub-millisecond timer values respect
+its 1 ms scheduling granularity. An unconfirmed finalization returns 503 without
+opening recovery in the closing session. Only confirmed finalization permits
+fresh-session recovery. Company operations preserve that shared protocol.
+
+`SiteDeadlineTest` covers stalled acquisition, stalled cancellation cleanup,
+sub-millisecond budget, recovery that never returns, and suppression of recovery
+before finalization. `SiteBudgetTest` covers unfinished writes, a lost commit
+confirmation and a real COMMIT blocked by an observed PostgreSQL advisory lock.
+Retrying the same key leaves exactly one Site/completion and preserves replay.
+`SiteHttpTest.continuationUsesCurrentRowsAndFiltersAfterChangesBetweenPages`
+checks inserts above/below the boundary, state changes both into/out of the filter,
+current AND filters, Company scope and a changed page size.
+
+| Final execution | Result |
+| --- | --- |
+| JVM regression | 263 tests, 78 suites, zero failures/errors/skips |
+| Productive JVM integration | 7 executed, zero failures/errors; 4 fixture-only exclusions |
+| Production isolation | passed |
+| Productive native integration | 7 executed, zero failures/errors; 4 fixture-only exclusions |
+| Non-root native OCI | all 3 modes, restart/rotation/replay and real commit deadline passed |
+
+Native runner SHA-256: `afe00651f69f2d82e1517a091773c9bdb2f009aa93040caf044b3d200b321c3b`.
+Image ID: `2aff72f06e8651d16ec633cbf9beb91a24a2b718244faf3b33863285653ecf65`; configured/executed UID 1001.
+The actual image used a 2 s request budget; each forced COMMIT was observed waiting
+on its lock before the 503. Final counts include one Site/one acceptance and the
+mode-appropriate zero/one event after same-key retry:
+
+| Mode | Observed elapsed | HTTP | Sites/completions/events |
+| --- | --- | --- | --- |
+| disabled | 2.003 s | 503 | 1|1|0 |
+| stored-only | 2.004 s | 503 | 1|1|1 |
+| published | 2.003 s | 503 | 1|1|1 |
+
+Final evidence is under `build/hu04-evidence/fix-final-jvm/`,
+`fix-final-native/` and `fix-final-oci/`. Each run has XML or JSON summaries and
+accepted logs. JVM command: the existing isolated-results init script with
+`-Phu04EvidenceRun=fix-final-jvm test build quarkusIntTest verifyProductionIsolation`.
+Native commands retain the documented 5 GiB/two-thread configuration; use
+`-Phu04EvidenceRun=fix-final-native quarkusIntTest -x quarkusBuild` for its process
+checks, then rebuild the native-micro image and execute the harness with
+`EVIDENCE_DIR=build/hu04-evidence/fix-final-oci`.
+
+Expected negative SQL diagnostics and the defensive rollback diagnostic HR000090
+in the forced-COMMIT case are retained in the log. Resource/key reuse and exact
+counts are asserted. No uncaught timer scheduling or wrong-context exceptions
+remain in the accepted JVM run. Existing Gradle/native metadata notices are
+not new Java compilation failures. The earlier execution sections below are
+historical evidence; this section records the corrected implementation.
+
 ## Execution status
 
 PostgreSQL 18, HTTP, concurrency, rollback, scalar parent-state coherence,

@@ -1,106 +1,87 @@
 # Verificación OpenSpec — HU04, issue #6
 
 Cambio: `add-company-site-registration-and-retrieval`, esquema `spec-driven`.
-Revisión: 2026-10-17, America/Guayaquil. Se contrastaron propuesta, diseño,
-cinco deltas, tareas, fuentes, pruebas y evidencia de ejecución.
+Reverificación: 2026-10-17, America/Guayaquil. Se contrastaron propuesta, diseño,
+cinco deltas, tareas, fuentes, pruebas y artefactos ejecutados después de corregir W1/W2.
 
 | Dimensión | Resultado |
 | --- | --- |
-| Completitud | 35/35 tareas marcadas; implementación localizada para 44/44 requisitos |
-| Corrección | 43/44 requisitos sin divergencias detectadas; plazo parcial (W1). 101 escenarios revisados: 99 con evidencia de pruebas, uno parcial (W1) y uno sin prueba específica (W2) |
-| Coherencia | Arquitectura/patrones consistentes; decisión 5 del diseño parcialmente cumplida (W1) |
+| Completitud | 35/35 tareas; implementación y evidencia para 44/44 requisitos |
+| Corrección | 44/44 requisitos conformes en la revisión; 101/101 escenarios con evidencia |
+| Coherencia | Las nueve decisiones del diseño y los patrones del proyecto se siguen |
 
-41 requisitos ADDED y tres MODIFIED; no hay REMOVED ni RENAMED.
-Todos los controles aplicables se revisaron. Las carencias encontradas se reportan
-como hallazgos, no como controles omitidos. Las casillas completas se contrastaron
-con fuentes y evidencia; el estado OpenSpec no se usó como veredicto automático.
+41 requisitos ADDED y tres MODIFIED; sin REMOVED ni RENAMED. Todos los controles
+aplicables se revisaron; no hay controles omitidos ni pendientes de verificación.
+Las cuatro exclusiones de fixtures en cada ejecución de integración pertenecen
+al artefacto de verificación, no a rutas ni escenarios productivos HU04 omitidos.
 
 ## Hallazgos
 
-**CRITICAL: 0.** No se encontraron tareas pendientes ni requisitos totalmente ausentes.
+**CRITICAL: 0. WARNING: 0. SUGGESTION: 0.**
 
-**WARNING W1 — El presupuesto no acota toda la operación.**
+**W1 corregida.** `RegisterSite.execute` impone un deadline desde la primera
+búsqueda hasta la finalización/recuperación y rechaza resultados tardíos.
+`ReactiveAtomicOperation` limita la fase completa, reserva tiempo para rollback,
+señala cancelación en el contexto propietario y acota la espera de limpieza.
+`PersistenceFailure.finalizationUncertain` impide recuperar en una transacción
+cuyo cierre todavía no se confirmó. Registro/actualización de Company conservan
+el mismo protocolo seguro. El plazo es de espera local: un 503 por commit incierto
+no afirma rollback; el mismo key permite resolver la aceptación durable posterior.
+Los timers respetan la granularidad de 1 ms de Vert.x.
 
-[RegisterSite.java:153](../../src/main/java/com/alexastudillo/companyregistry/application/site/RegisterSite.java#L153)
-mide fases y pasa el remanente al adaptador, pero no instala un timeout de la
-suscripción ni comprueba el plazo al terminar.
-[ReactiveAtomicOperation.java:11](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveAtomicOperation.java#L11)
-solo aplica `statement_timeout`/`lock_timeout` después de obtener sesión.
-La adquisición de conexión, una espera sin sentencia activa y la finalización no
-quedan acotadas por esos parámetros. Su hook de cancelación espera `finalized`
-sin límite propio en la línea 35. Una fase que no termina puede exceder el plazo
-configurado sin producir el 503 previsto.
+Pruebas: [SiteDeadlineTest.java](../../src/test/java/com/alexastudillo/companyregistry/application/site/SiteDeadlineTest.java),
+[SiteBudgetTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/SiteBudgetTest.java)
+y la prueba de COMMIT real del harness de imagen nativa. Cubren adquisición,
+limpieza pendiente, presupuesto submilisegundo, recuperación sin respuesta,
+finalización no confirmada, rollback de escritura inconclusa y replay tras commit.
 
-Se ejecutó una sonda aislada sobre las clases compiladas de Application con un
-`AtomicOperation` que simula una fase de lectura que no emite: presupuesto 50 ms,
-observador externo 350 ms. Terminó por `io.smallrye.mutiny.TimeoutException` del
-observador, no por `SiteFailure.UNAVAILABLE` del servicio. La sonda temporal está
-en `/tmp/Hu04DeadlineProbe.java`; no altera fuentes. Demuestra la falta de plazo
-en el caso de uso; no es una prueba de una caída real de red.
+**W2 corregida.**
+[SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java)
+obtiene el cursor y luego inserta sedes por encima y debajo de su frontera,
+cambia estados dentro/fuera del filtro y verifica los filtros actuales con AND,
+la pertenencia a Company y la continuación con otro tamaño de página. La nueva
+fila anterior a la frontera aparece en una consulta inicial nueva, mientras la
+continuación usa su frontera original. No se promete un snapshot congelado.
 
-**Acción:** imponer un plazo compartido que abarque adquisición, commit,
-rollback/cierre y recuperación, preservando la incertidumbre del commit y sin
-escrituras suscritas por separado. Añadir pruebas de fase sin terminación y
-finalización que excede el remanente: 503, ninguna reejecución ciega y aceptación
-recuperable mediante la misma clave. La cancelación explícita en
-[SiteBudgetTest.java:156](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/SiteBudgetTest.java#L156)
-no verifica que el presupuesto cancele por sí mismo. Actualizar después la
-evidencia de aceptación completa. Afecta a «Espera finita e incertidumbre explícita»,
-«Timeout o commit incierto» y decisión 5 del diseño.
+## Evidencia final
 
-**WARNING W2 — Falta la prueba de cambios entre páginas.**
+- Regresión JVM: **263 pruebas**, 78 suites, cero fallos/errores/omisiones.
+- Proceso JVM productivo: **7 pruebas ejecutadas**, cero fallos/errores y cuatro
+  exclusiones de fixtures; `build` y `verifyProductionIsolation` pasaron.
+- Proceso nativo productivo: **7 pruebas ejecutadas**, cero fallos/errores y las
+  mismas cuatro exclusiones de fixtures. Binario reconstruido con las fuentes finales.
+- Imagen nativa UID 1001: tres modos, reinicio/rotación/replay y commit real
+  bloqueado, 503 y mismo-key retry con conteos exactos.
+- Runner SHA-256: `afe00651f69f2d82e1517a091773c9bdb2f009aa93040caf044b3d200b321c3b`. Image ID: `2aff72f06e8651d16ec633cbf9beb91a24a2b718244faf3b33863285653ecf65`.
+- V1–V3 intactas; sin cambios de políticas/codecs históricos Company, sin TTL,
+  publisher HU08 ni rutas de ciclo de vida HU03/HU05.
+- Manifiesto de 147 archivos productivos/configuración: las fuentes finales
+  coinciden con las que pasaron la regresión JVM.
+- `openspec validate --strict`: válido; 35/35 tareas contrastadas con fuentes/evidencia.
 
-[SiteHttpTest.java:85](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java#L85)
-recorre un conjunto estable con fechas iguales. `PackagedSiteIT` y el harness OCI
-también crean sus filas antes de navegar. No hay una prueba que inserte o cambie
-sedes entre la primera página y la continuación. La consulta en
-[ReactiveSiteRepository.java:26](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveSiteRepository.java#L26)
-aplica frontera y filtros a los datos actuales, pero falta comprobar ese escenario.
+| Modo de imagen | Tiempo observado con presupuesto 2 s | Resultado | Sites/completados/eventos tras reintento |
+| --- | --- | --- | --- |
+| disabled | 2.003 s | 503 | 1|1|0 |
+| stored-only | 2.004 s | 503 | 1|1|1 |
+| published | 2.003 s | 503 | 1|1|1 |
 
-**Acción:** añadir prueba PostgreSQL/HTTP que obtenga el cursor, inserte filas a
-ambos lados de la frontera y cambie por fixture el estado de una fila pendiente;
-continuar con el cursor original y verificar frontera y filtros actuales. Cubre
-«Cambios entre páginas» sin prometer una colección histórica congelada.
+XML, JSON y logs aceptados: `build/hu04-evidence/fix-final-jvm/`,
+`fix-final-native/`, `fix-final-oci/`. Comandos y detalles en
+[hu04-acceptance-review.md](hu04-acceptance-review.md). Los diagnósticos SQL
+negativos y el rollback defensivo del COMMIT forzado son parte de las pruebas;
+se comprueba la reutilización de clave/recursos y no se observan errores no
+capturados de timers o de contexto en la ejecución JVM aceptada.
 
-**SUGGESTION: 0.** No se detectaron desviaciones significativas de patrones Java.
+## Coherencia
 
-## Evidencia ejecutada e inspeccionada
-
-- Reejecución focalizada durante esta revisión: **63 pruebas, 22 suites, cero
-  fallos/errores/omitidos**, `BUILD SUCCESSFUL` en 1m 30s. Incluye Site, clasificación
-  de persistencia, arquitectura y OpenAPI. XML en
-  `build/hu04-evidence/verify/results/test/xml`; log `/tmp/hu04-verify-tests.log`.
-- Comando: `QUARKUS_HTTP_TEST_PORT=0 DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true ./gradlew -I docs/operations/hu04-test-results.gradle -Phu04EvidenceRun=verify test --tests '*Site*' --tests '*PersistenceFailuresTest' --tests '*ArchitectureTest' --tests '*OpenApiHttpTest' --console=plain`.
-- `openspec validate add-company-site-registration-and-retrieval --strict` pasó
-  nuevamente; `status` e `instructions apply` confirman todos los artefactos y tareas.
-- Evidencia previa inspeccionada: 254 tests JVM sin fallos/errores/omitidos;
-  integración JVM y nativa con siete ejecutados en cada una, sin fallos/errores y
-  cuatro casos de fixtures excluidos del artefacto productivo en cada ejecución.
-  Esas exclusiones no son controles HU04 omitidos: las rutas productivas se
-  verifican mediante `PackagedSiteIT` y aislamiento del artefacto.
-- Evidencia OCI previa: tres modos, UID 1001, reinicio/rotación/replay,
-  proveedores rechazando conexiones y verificación de contadores/eventos. Runner
-  SHA-256 `851c5e175215d0843435b89c82eef94548b31b81d9a5cb840e82cb8f7cccd187`.
-  No se reconstruyeron ni reejecutaron binario o imagen durante esta revisión.
-- V1–V3 comparadas byte a byte con `0d2ca32`: intactas. Políticas/codecs históricos
-  Company revisados sin cambios; sin TTL ni publisher HU08.
-- Informes anteriores: `build/hu04-evidence/jvm/results-summary.json`,
-  `build/hu04-evidence/native/results-summary.json`, `build/hu04-evidence/oci/report.json`
-  y [hu04-acceptance-review.md](hu04-acceptance-review.md). W1/W2 precisan la
-  afirmación previa de cobertura completa.
-
-## Coherencia con el diseño
-
-Se sigue la separación Domain/Application/API/Infrastructure y se reutilizan
-Site/SiteRecord. Se preservan texto original y presencia, política v1 congelada,
-replay antes de admisión, bloqueo del padre para los cuatro tipos, segunda
-consulta de completado, auditoría independiente y recuperación tras cierre de la
-transacción fallida. Fingerprint/snapshot propios mantienen procedencia histórica.
-El join escalar evita reutilizar estado gestionado del padre; cursor HMAC separado,
-limit+1 y frontera fecha/UUID respetan el diseño. Evento y API mantienen contratos
-cerrados, mapper compartido y ausencia de publicación/proveedores en HU04.
-La decisión 5 queda parcial por W1; la estrategia de evidencia debe incorporar W2.
-No se proponen cambios de estilo que no afecten a estos contratos.
+Se conserva la separación Domain/Application/API/Infrastructure, agregado Site,
+entrada original y política v1, replay primero, bloqueo Company para todos los
+tipos, segunda consulta de aceptación, auditoría independiente y recuperación
+tras cierre confirmado. Fingerprints y snapshots históricos no cambian.
+El join escalar, cursor HMAC separado, limit+1 y frontera completa permanecen.
+Evento/API siguen cerrados y reutilizan outbox/mapper compartidos sin proveedores
+ni publicación. La decisión 5 documenta ahora el deadline integral y la señal
+neutral de finalización; la estrategia de pruebas incluye cambios entre páginas.
 
 ## Trazabilidad de requisitos y escenarios
 
@@ -143,7 +124,7 @@ operacional se contrasta con el runbook de conservación y las pruebas de reinic
 | 4.11 | [Replay original previo al estado actual](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L140) | [RegisterSite.java](../../src/main/java/com/alexastudillo/companyregistry/application/site/RegisterSite.java) | [RegisterSiteTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/RegisterSiteTest.java), [PackagedSiteIT.java](../../src/integrationTest/java/com/alexastudillo/companyregistry/PackagedSiteIT.java) | Conforme |
 | 4.12 | [Aceptación local atómica](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L152) | [ReactiveAtomicOperation.java](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveAtomicOperation.java) | [RegisterSiteTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/RegisterSiteTest.java), [SiteCreatedAtomicTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/outbox/SiteCreatedAtomicTest.java) | Conforme |
 | 4.13 | [Resolución durable de registros concurrentes](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L160) | [RegisterSite.java](../../src/main/java/com/alexastudillo/companyregistry/application/site/RegisterSite.java) | [RegisterSiteTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/RegisterSiteTest.java), [SiteConcurrencyHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteConcurrencyHttpTest.java) | Conforme |
-| 4.14 | [Espera finita e incertidumbre explícita](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L180) | [ReactiveAtomicOperation.java](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveAtomicOperation.java) | [SiteBudgetTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/SiteBudgetTest.java), [RegisterSiteTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/RegisterSiteTest.java) | Parcial: W1 |
+| 4.14 | [Espera finita e incertidumbre explícita](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L180) | [ReactiveAtomicOperation.java](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveAtomicOperation.java) | [SiteBudgetTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/SiteBudgetTest.java), [RegisterSiteTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/RegisterSiteTest.java), [SiteDeadlineTest.java](../../src/test/java/com/alexastudillo/companyregistry/application/site/SiteDeadlineTest.java) | Conforme |
 | 4.15 | [Registro independiente de proveedores](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L188) | [RegisterSite.java](../../src/main/java/com/alexastudillo/companyregistry/application/site/RegisterSite.java) | [PackagedSiteIT.java](../../src/integrationTest/java/com/alexastudillo/companyregistry/PackagedSiteIT.java) | Conforme |
 | 5.1 | [Contexto obligatorio y consulta local de Site](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L9) | [SiteResource.java](../../src/main/java/com/alexastudillo/companyregistry/api/site/SiteResource.java) | [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java), [BusinessContextHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/BusinessContextHttpTest.java), [PackagedSiteIT.java](../../src/integrationTest/java/com/alexastudillo/companyregistry/PackagedSiteIT.java) | Conforme |
 | 5.2 | [Representación pública uniforme de Site](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L20) | [SiteResponse.java](../../src/main/java/com/alexastudillo/companyregistry/api/site/SiteResponse.java) | [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java), [PackagedSiteIT.java](../../src/integrationTest/java/com/alexastudillo/companyregistry/PackagedSiteIT.java) | Conforme |
@@ -152,7 +133,7 @@ operacional se contrasta con el runbook de conservación y las pruebas de reinic
 | 5.5 | [Historial visible sin exclusiones implícitas](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L58) | [ReactiveSiteRepository.java](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveSiteRepository.java) | [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java), [PackagedSiteIT.java](../../src/integrationTest/java/com/alexastudillo/companyregistry/PackagedSiteIT.java) | Conforme |
 | 5.6 | [Operatividad efectiva calculada al consultar](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L70) | [Site.java](../../src/main/java/com/alexastudillo/companyregistry/domain/model/Site.java) | [SiteRegistrationTest.java](../../src/test/java/com/alexastudillo/companyregistry/application/site/SiteRegistrationTest.java), [SiteReadCoherenceTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/SiteReadCoherenceTest.java), [PackagedSiteIT.java](../../src/integrationTest/java/com/alexastudillo/companyregistry/PackagedSiteIT.java) | Conforme |
 | 5.7 | [Filtros exactos y parámetros cerrados](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L87) | [SiteResource.java](../../src/main/java/com/alexastudillo/companyregistry/api/site/SiteResource.java) | [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java) | Conforme |
-| 5.8 | [Paginación determinista y acotada de sedes](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L103) | [ReactiveSiteRepository.java](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveSiteRepository.java) | [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java), [SiteRegistrationTest.java](../../src/test/java/com/alexastudillo/companyregistry/application/site/SiteRegistrationTest.java) | Prueba pendiente: W2 |
+| 5.8 | [Paginación determinista y acotada de sedes](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L103) | [ReactiveSiteRepository.java](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/ReactiveSiteRepository.java) | [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java), [SiteRegistrationTest.java](../../src/test/java/com/alexastudillo/companyregistry/application/site/SiteRegistrationTest.java) | Conforme |
 | 5.9 | [Cursor autenticado y exclusivo de la colección Site](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L119) | [AuthenticatedSiteCursors.java](../../src/main/java/com/alexastudillo/companyregistry/infrastructure/persistence/AuthenticatedSiteCursors.java) | [SiteCursorTest.java](../../src/test/java/com/alexastudillo/companyregistry/infrastructure/persistence/SiteCursorTest.java), [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java) | Conforme |
 | 5.10 | [Metadatos de avance en el envelope compartido](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L135) | [ReadSites.java](../../src/main/java/com/alexastudillo/companyregistry/application/site/ReadSites.java) | [SiteHttpTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/site/SiteHttpTest.java), [PaginationLibraryContractTest.java](../../src/test/java/com/alexastudillo/companyregistry/api/PaginationLibraryContractTest.java) | Conforme |
 
@@ -237,7 +218,7 @@ La evidencia de cada ID está en la fila del requisito correspondiente.
 | 4.13.2 | [Misma clave para distintas Companies](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L168) | Evidencia de pruebas del requisito |
 | 4.13.3 | [Distintas claves para la misma sede legal](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L172) | Evidencia de pruebas del requisito |
 | 4.13.4 | [Competidor que revierte](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L176) | Evidencia de pruebas del requisito |
-| 4.14.1 | [Timeout o commit incierto](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L183) | Parcial: W1 |
+| 4.14.1 | [Timeout o commit incierto](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L183) | Conforme |
 | 4.15.1 | [Proveedores caídos](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-registration/spec.md#L191) | Evidencia de pruebas del requisito |
 | 5.1.1 | [Consulta independiente de proveedores](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L12) | Evidencia de pruebas del requisito |
 | 5.1.2 | [Contexto inválido](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L16) | Evidencia de pruebas del requisito |
@@ -258,16 +239,14 @@ La evidencia de cada ID está en la fila del requisito correspondiente.
 | 5.7.3 | [Parámetro inválido o no admitido](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L99) | Evidencia de pruebas del requisito |
 | 5.8.1 | [Desempate por identificador](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L106) | Evidencia de pruebas del requisito |
 | 5.8.2 | [Límites de página](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L110) | Evidencia de pruebas del requisito |
-| 5.8.3 | [Cambios entre páginas](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L115) | Sin prueba específica: W2 |
+| 5.8.3 | [Cambios entre páginas](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L115) | Evidencia de pruebas del requisito |
 | 5.9.1 | [Cursor de otro ámbito o colección](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L122) | Evidencia de pruebas del requisito |
 | 5.9.2 | [Filtros equivalentes](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L126) | Evidencia de pruebas del requisito |
 | 5.9.3 | [Integridad o formato inválido](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L131) | Evidencia de pruebas del requisito |
 | 5.10.1 | [Página intermedia o final](../../openspec/changes/add-company-site-registration-and-retrieval/specs/company-site-retrieval/spec.md#L138) | Evidencia de pruebas del requisito |
 
+
 ## Evaluación final
 
-Sin hallazgos críticos. **Dos advertencias y cero sugerencias**; todos los controles
-aplicables fueron revisados. Listo para archivar con las observaciones indicadas,
-según el criterio consultivo de la skill. Se recomienda resolver W1 y añadir la
-prueba W2 antes de afirmar cumplimiento completo del diseño y las especificaciones.
-No se archivó el cambio ni se corrigió la implementación durante esta verificación.
+Todas las comprobaciones pasaron. Sin críticos, advertencias ni sugerencias.
+Listo para archivar. Esta verificación no archiva el cambio.

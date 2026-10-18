@@ -38,6 +38,18 @@ class SiteDeadlineTest {
     }
 
     @Test
+    void subMillisecondBudgetStillProducesTheOwnedUnavailableFailure() {
+        var operation = new StubOperation() {
+            @Override public <T> Uni<T> read(Supplier<Uni<T>> work) { return Uni.createFrom().nothing(); }
+        };
+        var service = new RegisterSite(new RegisterSite.Storage(operation, null, null, null),
+                new RegisterSite.Idempotency(null, null, null), null, null, Duration.ofNanos(1));
+        var awaiting = service.execute(command()).await();
+        var failure = assertThrows(SiteFailure.class, () -> awaiting.atMost(OBSERVER_LIMIT));
+        assertEquals(SiteFailure.Kind.UNAVAILABLE, failure.kind());
+    }
+
+    @Test
     void boundsTheResponseEvenWhenCancellationCleanupDoesNotFinish() {
         var cleanup = new AtomicInteger();
         var operation = new StubOperation() {
@@ -53,6 +65,29 @@ class SiteDeadlineTest {
         var failure = assertThrows(SiteFailure.class, () -> awaiting.atMost(OBSERVER_LIMIT));
         assertEquals(SiteFailure.Kind.UNAVAILABLE, failure.kind());
         assertEquals(1, cleanup.get());
+    }
+
+    @Test
+    void doesNotRecoverInASessionWhoseFinalizationIsStillUncertain() {
+        var reads = new AtomicInteger();
+        var writes = new AtomicInteger();
+        var completions = mock(CompletionRepository.class);
+        when(completions.find(any())).thenReturn(Uni.createFrom().nullItem());
+        var operation = new StubOperation() {
+            @Override public <T> Uni<T> read(Supplier<Uni<T>> work) {
+                reads.incrementAndGet();
+                return work.get();
+            }
+            @Override public <T> Uni<T> execute(Supplier<Uni<T>> work) {
+                writes.incrementAndGet();
+                return Uni.createFrom().failure(PersistenceFailure.finalizationUncertain());
+            }
+        };
+        var awaiting = service(operation, completions).execute(command()).await();
+        var failure = assertThrows(SiteFailure.class, () -> awaiting.atMost(OBSERVER_LIMIT));
+        assertEquals(SiteFailure.Kind.UNAVAILABLE, failure.kind());
+        assertEquals(1, reads.get());
+        assertEquals(1, writes.get());
     }
 
     @Test
