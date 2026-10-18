@@ -3,7 +3,7 @@ package com.alexastudillo.companyregistry.application.persistence;
 /** Transport-neutral classification. Causes are diagnostic only and must never become public messages. */
 public final class PersistenceFailure extends RuntimeException {
     public enum Kind { DUPLICATE, INVALID_REFERENCE, INVALID_DATA, STALE_VERSION, UNAVAILABLE, UNEXPECTED }
-    public enum Uniqueness { COMPANY_CODE, COMPANY_PARTY, COMPLETION_KEY, OTHER }
+    public enum Uniqueness { COMPANY_CODE, COMPANY_PARTY, SITE_CODE, SITE_HEADQUARTERS, COMPLETION_KEY, OTHER }
     private final Kind kind;
     private final Uniqueness uniqueness;
 

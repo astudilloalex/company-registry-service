@@ -156,7 +156,8 @@ try:
                 assert event['payload']['siteId'] == event['aggregate_id'] and event['event_type'] == 'company.site.created.v1'
                 assert event['payload']['createdBy'] == 'Actor-aB' and event['causation_id'] is None
         stop(f'{mode}-original.log')
-        base = start('disabled', 'oci-k2')
+        restart_mode = 'published' if mode == 'disabled' else 'disabled'
+        base = start(restart_mode, 'oci-k2')
         replay_headers = {**headers, 'Process-Id': str(uuid.uuid4()), 'User-Id': 'Replay-aB'}
         status, replay = request(base, path, 'POST', body, replay_headers)
         assert status == 201 and replay['data'] == original
@@ -164,7 +165,7 @@ try:
         assert sql(f"SELECT version FROM companies WHERE id='{company}'") == '1'
         assert counts == sql(f"SELECT (SELECT count(*) FROM companies WHERE tenant_id='{tenant}'),(SELECT count(*) FROM company_idempotency_records WHERE tenant_id='{tenant}'),(SELECT count(*) FROM company_outbox_events WHERE tenant_id='{tenant}');")
         stop(f'{mode}-restarted.log')
-        report['modes'].append({'mode': mode, 'counts': counts, 'replayAfterRestartRotationArchival': True, 'providers': 'connection refused', 'broker': '127.0.0.1:9', 'user': '1001'})
+        report['modes'].append({'mode': mode, 'restartMode': restart_mode, 'counts': counts, 'replayAfterRestartRotationArchival': True, 'providers': 'connection refused', 'broker': '127.0.0.1:9', 'user': '1001'})
     (EVIDENCE / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))
 finally:
