@@ -13,7 +13,7 @@ Change: `add-company-lifecycle-management`. Review date: 2026-10-18
 | AC07–AC08 | CompanyLifecycleHttpTest full cycle/current Site operativity/original Site no-op replay; unchanged Site/address/contact snapshots | Passed in the complete JVM/PostgreSQL regression |
 | AC09–AC10 | Actual archive routes reject HU02/HU03/HU04/HU05 including no-op; CompanyLifecycleConcurrencyHttpTest covers every Site type/writer | Concurrency matrix passed; complete JVM/PostgreSQL regression passed |
 | AC11 | ordered real HTTP archives and effective/no-op HU02 PATCH, independently observed SQL row waits and fresh revision reads | Passed |
-| AC12 | Namespace/vector/key rotation tests, JSONB codec, equivalent/different/cross-Company key races and rollback, packaged/native restart checks | All key races including competitor rollback passed; packaged/native process checks in progress |
+| AC12 | Namespace/vector/key rotation tests, JSONB codec, equivalent/different/cross-Company key races and rollback, packaged/native restart checks | All key races including competitor rollback passed; packaged JVM checks passed; native process checks in progress |
 | AC13 | Three operations × three outbox modes × optional key; rollback after each mandatory write; real events/schema/envelope/archival producer tests | LifecycleRecoveryTest and contract suites passed; native/OCI checks in progress |
 | AC14 | Actual activate vs headquarters deactivate/close/reclassification in both orders; actual archive vs HU04/HU05 writers for all four Site types; held Party allows Company/Site writes | Passed |
 
@@ -35,8 +35,8 @@ containers and dynamic HTTP ports. Reports are isolated with
 Executed initial stages: 39 persistence/SQL tests, 45 fingerprint/codec/JSONB and
 regression tests, and 18 HTTP/recovery/OpenAPI/startup/signature tests passed with
 zero failures/errors/skips. The first full 379-test run had nine fixture failures:
-one missing JSON Content-Type, and eight after a restricted-resource application
-restart reused a closed Hibernate factory. LifecycleHttpProfile now shares one
+raw requests without JSON Content-Type and a restricted-resource application
+restart that reused a closed Hibernate factory. LifecycleHttpProfile now shares one
 isolated database/provider application for both HU03 HTTP classes. That run's
 other 370 cases passed, including all prior capabilities and the actual AC11/AC14
 matrices. The corrected complete run passed all 379 cases with zero failures, errors
@@ -55,6 +55,17 @@ podman build -f src/main/docker/Dockerfile.native-micro -t company-registry-serv
 EVIDENCE_DIR=build/hu03-evidence/oci python3 -u docs/operations/verify-hu03-native-image.py
 openspec validate add-company-lifecycle-management --strict
 ```
+
+The productive packaged JVM run passed in 4m2s: 14 focused budget/fingerprint tests
+and all nine productive process cases, including PackagedCompanyLifecycleIT. Four
+PackagedVerificationIT cases are deliberately disabled by `verification.artifact=false`:
+these probe routes are absent from the productive artifact. They are not HU03 gates
+and are not counted as executed productive coverage. Reports are in
+`build/hu03-evidence/packaged-jvm/results/`.
+
+The expanded final HTTP matrix passed all 16 cases in 2m18s, including registration
+of every Site type against actual archive in both orders and HU04 replay after the
+actual Company cycle/archive. Reports: `build/hu03-evidence/final-http-races/results/test/`.
 
 OpenSpec strict validation already passed during implementation; it will be
 repeated after every task is complete. PackagedCompanyLifecycleIT checks the actual
