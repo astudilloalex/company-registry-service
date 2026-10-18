@@ -7,6 +7,7 @@ import com.alexastudillo.companyregistry.domain.text.BusinessText;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.Objects;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 /**
@@ -30,7 +31,15 @@ public class DivisionReferenceAdapter implements DivisionReferences {
         return countries.find(context, alpha2Code).chain(country -> {
             if (country == null)
                 return Uni.createFrom().nullItem();
-            return client.division(country.id(), code, context.actor(), context.processId())
+            return findInCountry(context, country, code);
+        });
+    }
+
+    @Override
+    public Uni<DivisionReference> findInCountry(OperationContext context, CountryReference country, String canonicalCode) {
+        Objects.requireNonNull(country, "country");
+        var code = BusinessText.required(canonicalCode, 64);
+        return client.division(country.id(), code, context.actor(), context.processId())
                     .onFailure(RemoteContracts::clientFailure).transform(RemoteContracts::processing)
                     .map(RemoteContracts::data).map(value -> {
                         if (value == null)
@@ -45,6 +54,5 @@ public class DivisionReferenceAdapter implements DivisionReferences {
                             throw RemoteContracts.invalid();
                         }
                     });
-        });
     }
 }

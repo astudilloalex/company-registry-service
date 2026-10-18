@@ -17,6 +17,7 @@ class ResourceSignatureTest {
     @Test void everyVerificationEndpointUsesExplicitEnvelopeWithAnApiDto() {
         verify(com.alexastudillo.companyregistry.api.company.CompanyResource.class);
         verify(com.alexastudillo.companyregistry.api.company.CompanyLifecycleResource.class);
+        verify(com.alexastudillo.companyregistry.api.site.AddressResource.class);
         verify(FoundationResource.class);
         verify(com.alexastudillo.companyregistry.api.verification.PersistenceProbeResource.class);
         verify(com.alexastudillo.companyregistry.api.verification.ReferenceProbeResource.class);

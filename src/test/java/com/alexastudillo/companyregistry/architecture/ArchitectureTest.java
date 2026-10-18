@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.alexastudillo.companyregistry.architecture.fixtures.application.HttpCoupledApplication;
 import com.alexastudillo.companyregistry.architecture.fixtures.domain.FrameworkCoupledDomain;
+import com.alexastudillo.companyregistry.architecture.fixtures.domain.OuterCoupledDomain;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
@@ -49,5 +50,15 @@ class ArchitectureTest {
     void applicationRuleRejectsHttpAndPersistenceCoupling() {
         var violation = new ClassFileImporter().importClasses(HttpCoupledApplication.class);
         assertTrue(INNER_APPLICATION.evaluate(violation).hasViolation());
+    }
+
+    @Test
+    void domainRuleRejectsApplicationPersistenceTransportAndReactiveDependencies() {
+        var violation = new ClassFileImporter().importClasses(OuterCoupledDomain.class);
+        var report = PURE_DOMAIN.evaluate(violation).getFailureReport().toString();
+        assertTrue(report.contains("application.site.SiteMutation"));
+        assertTrue(report.contains("jakarta.persistence.EntityManager"));
+        assertTrue(report.contains("jakarta.ws.rs.core.Response"));
+        assertTrue(report.contains("io.smallrye.mutiny.Uni"));
     }
 }
