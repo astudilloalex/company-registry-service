@@ -120,7 +120,7 @@ public final class UpdateCompany {
                 && (p.kind() == PersistenceFailure.Kind.INVALID_DATA || p.kind() == PersistenceFailure.Kind.INVALID_REFERENCE);
     }
     private boolean recoverable(Throwable f) {
-        return f instanceof PersistenceFailure p && (p.kind()==PersistenceFailure.Kind.UNAVAILABLE
+        return f instanceof PersistenceFailure p && p.transactionFinalized() && (p.kind()==PersistenceFailure.Kind.UNAVAILABLE
                 || (p.kind()==PersistenceFailure.Kind.DUPLICATE && (p.uniqueness()==PersistenceFailure.Uniqueness.COMPANY_CODE
                 || p.uniqueness()==PersistenceFailure.Uniqueness.COMPLETION_KEY)));
     }

@@ -12,6 +12,48 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class ReactiveSiteRepository implements SiteRepository, PanacheRepositoryBase<SiteEntity, UUID> {
+    // Scalar parent values bypass the first-level entity already loaded for existence.
+    private static final String LOCAL = "select s, c.id, c.tenantId, c.partyId, c.status, c.version from SiteEntity s, CompanyEntity c where s.tenantId = :tenant "
+            + "and s.companyId = :company and c.tenantId = s.tenantId and c.id = s.companyId";
+    private static final String PARAM_TENANT = "tenant";
+    private static final String PARAM_COMPANY = "company";
+    private static final String PARAM_SITE = "site";
+
+    @Override public Uni<LocalSite> detail(UUID tenant, UUID company, UUID site) {
+        return Panache.getSession().chain(session -> session.createQuery(LOCAL + " and s.id = :site", Object[].class)
+                .setParameter(PARAM_TENANT, tenant).setParameter(PARAM_COMPANY, company).setParameter(PARAM_SITE, site)
+                .getSingleResultOrNull()).map(row -> row == null ? null : local(row));
+    }
+
+    @Override public Uni<List<LocalSite>> page(UUID tenant, UUID company,
+            com.alexastudillo.companyregistry.application.site.SiteSelection.Filters filters,
+            com.alexastudillo.companyregistry.application.site.SiteSelection.Boundary boundary, int limit) {
+        if (limit < 1 || limit > 200) throw new IllegalArgumentException("site-page-limit-invalid");
+        var hql = new StringBuilder(LOCAL);
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put(PARAM_TENANT, tenant); parameters.put(PARAM_COMPANY, company);
+        if (filters.code() != null) { hql.append(" and s.code = :code"); parameters.put("code", filters.code()); }
+        if (filters.siteType() != null) { hql.append(" and s.type = :type"); parameters.put("type", filters.siteType()); }
+        if (filters.status() != null) { hql.append(" and s.status = :status"); parameters.put("status", filters.status()); }
+        if (boundary != null) {
+            hql.append(" and (s.createdAt < :created or (s.createdAt = :created and s.id < :id))");
+            parameters.put("created", boundary.createdAt()); parameters.put("id", boundary.id());
+        }
+        hql.append(" order by s.createdAt desc, s.id desc");
+        return Panache.getSession().chain(session -> {
+            var query = session.createQuery(hql.toString(), Object[].class);
+            parameters.forEach(query::setParameter);
+            return query.setMaxResults(limit + 1).getResultList();
+        }).map(rows -> rows.stream().map(ReactiveSiteRepository::local).toList());
+    }
+
+    private static LocalSite local(Object[] row) {
+        var company = new com.alexastudillo.companyregistry.domain.model.Company((UUID)row[1], (UUID)row[2], (UUID)row[3],
+                (com.alexastudillo.companyregistry.domain.model.CompanyStatus)row[4],
+                new com.alexastudillo.companyregistry.domain.model.AggregateVersion(((Number)row[5]).longValue()));
+        return new LocalSite(((SiteEntity)row[0]).value(), company);
+    }
+
     @Override
     public Uni<SiteRecord> find(UUID tenantId, UUID companyId, UUID siteId) {
         return find("tenantId = ?1 and companyId = ?2 and id = ?3", tenantId, companyId, siteId)
@@ -21,6 +63,16 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
     @Override
     public Uni<SiteRecord> insert(SiteRecord site) {
         return persistAndFlush(SiteEntity.from(site)).map(SiteEntity::value);
+    }
+
+    @Override public Uni<Boolean> codeOccupied(UUID tenantId, UUID companyId, String code) {
+        return count("tenantId = ?1 and companyId = ?2 and code = ?3", tenantId, companyId, code).map(n -> n > 0);
+    }
+
+    @Override public Uni<Boolean> headquartersOccupied(UUID tenantId, UUID companyId) {
+        return count("tenantId = ?1 and companyId = ?2 and type = ?3 and status <> ?4", tenantId, companyId,
+                com.alexastudillo.companyregistry.domain.model.SiteType.HEADQUARTERS,
+                com.alexastudillo.companyregistry.domain.model.SiteStatus.CLOSED).map(n -> n > 0);
     }
 
     @Override
@@ -47,7 +99,7 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
                 "select a from AddressEntity a, SiteEntity s where a.siteId = s.id "
                         + "and s.tenantId = :tenant and s.companyId = :company and s.id = :site order by a.createdAt, a.id",
                 AddressEntity.class)
-                .setParameter("tenant", tenantId).setParameter("company", companyId).setParameter("site", siteId)
+                .setParameter(PARAM_TENANT, tenantId).setParameter(PARAM_COMPANY, companyId).setParameter(PARAM_SITE, siteId)
                 .getResultList()).map(rows -> rows.stream().map(AddressEntity::value).toList());
     }
 
@@ -57,7 +109,7 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
                 "select c from ContactEntity c, SiteEntity s where c.siteId = s.id "
                         + "and s.tenantId = :tenant and s.companyId = :company and s.id = :site order by c.createdAt, c.id",
                 ContactEntity.class)
-                .setParameter("tenant", tenantId).setParameter("company", companyId).setParameter("site", siteId)
+                .setParameter(PARAM_TENANT, tenantId).setParameter(PARAM_COMPANY, companyId).setParameter(PARAM_SITE, siteId)
                 .getResultList()).map(rows -> rows.stream().map(ContactEntity::contactRecord).toList());
     }
 

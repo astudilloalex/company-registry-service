@@ -88,6 +88,7 @@ Table company_sites {
     company_id [unique, name: 'uq_company_sites_open_headquarters', note: "PARTIAL: site_type = 'HEADQUARTERS' AND status <> 'CLOSED'; not unconditional uniqueness."]
     (tenant_id, company_id, status, id) [name: 'ix_company_sites_tenant_status']
     (company_id, site_type) [name: 'ix_company_sites_type']
+    (tenant_id, company_id, created_at, id) [name: 'ix_company_sites_tenant_company_created', note: 'V4: created_at DESC, id DESC']
   }
   Note: 'Canonical code/name; version >= 0 and coherent audit. trg_company_sites_immutable_changes protects id, tenant_id, company_id, created_at/by; CLOSED permits only identical updates. Version shared with address/contact mutations.'
 }

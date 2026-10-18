@@ -51,7 +51,7 @@ class FingerprintMetadataIntegrityTest extends SqlIntegritySupport {
         try (var statement = connection.createStatement()) { statement.execute(v2); }
         assertEquals("Logo-aB:true:true", scalar("SELECT (result_snapshot->>'opaque')||':'||(result_snapshot->'optional'='null'::jsonb)::text||':'||(fingerprint_version IS NULL AND fingerprint_key_id IS NULL)::text FROM company_idempotency_records"));
         assertEquals("6", scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema='fingerprint_upgrade' AND table_type='BASE TABLE'"));
-        assertEquals("3", flyway.info().current().getVersion().getVersion());
+        assertEquals("4", flyway.info().current().getVersion().getVersion());
         assertEquals("-272976494", scalar("SELECT checksum::text FROM public.flyway_schema_history WHERE version='1'"));
     }
 }

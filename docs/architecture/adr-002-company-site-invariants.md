@@ -6,6 +6,7 @@ Status: accepted by the foundation design; workflows remain assigned to their HU
 
 - [HU01 / #3](https://github.com/astudilloalex/company-registry-service/issues/3): legal Party identity, tenant uniqueness, registration version and replay.
 - [HU03 / #5](https://github.com/astudilloalex/company-registry-service/issues/5): Company state machine and activation prerequisites.
+- [HU04 / #6](https://github.com/astudilloalex/company-registry-service/issues/6): local Site registration and retrieval.
 - [HU05 / #7](https://github.com/astudilloalex/company-registry-service/issues/7): Site independence, headquarters protection and shared Site revision for child mutations.
 - Existing V1 migration: uniqueness, qualified foreign keys and immutable identity/terminal-state triggers.
 
@@ -35,6 +36,28 @@ Future Company activation and conflicting headquarters mutations lock **Company 
 An ACTIVE Company cannot lose, deactivate, close or reclassify its only active headquarters. V1 replacement is: deactivate Company → close old headquarters → register replacement → activate replacement → reactivate Company. No atomic replacement workflow is added in T00.
 
 ## Versions, replay and events
+
+### HU04 registration decision
+
+New Site registration is admitted locally under a tenant-qualified Company in
+DRAFT, ACTIVE or INACTIVE. ARCHIVED rejects a new registration. Every Site type
+(HEADQUARTERS, BRANCH, WAREHOUSE and OTHER) must acquire the Company lock before
+creating Site, then recheck durable acceptance before checking current admission.
+An equivalent accepted retry returns the original result before consulting current
+Company or Site state. Registration does not call Party or geographic providers.
+
+Site starts at DRAFT/version 0 with one UTC microsecond instant and the exact actor
+in both creation/update audit pairs (AC01). Registering Site leaves Company's
+status, version and all four audit values untouched (AC14); acquiring its lock is
+not a Company mutation. Effective operativity is computed on reads using the
+qualified Company/Site states, while registration replay retains its original false.
+
+The canonical code remains reserved within Company for every Site status,
+including CLOSED. Closing headquarters releases only the non-CLOSED headquarters
+slot, so replacement requires a different, free code and preserves the historical
+Site (AC07). Other Companies can use the same code. This decision supplies no
+activation, closure, archival or atomic headquarters-replacement workflow; those
+remain HU03/HU05 responsibilities with Company → Site lock ordering.
 
 Company and Site start at version zero. Every effective mutation increments the owning aggregate exactly once; Address/Contact mutations use Site's version. No-op and replay preserve versions and do not duplicate events. Company mutations do not increment Site, or vice versa. Event `aggregate_version` is the resulting business revision; outbox `version` is independent delivery concurrency state.
 

@@ -19,7 +19,18 @@ public final class OpenApiAssertions {
         assertTrue(actualResult.getMessages().isEmpty(), () -> actualResult.getMessages().toString());
         var expected = expectedResult.getOpenAPI(); var actual = actualResult.getOpenAPI();
         assertEquals(expected.getInfo(), actual.getInfo());
-        assertEquals(Set.of("/v1/companies", "/v1/companies/{companyId}"), actual.getPaths().keySet());
+        assertEquals(Set.of("/v1/companies", "/v1/companies/{companyId}", "/v1/companies/{companyId}/sites",
+                "/v1/companies/{companyId}/sites/{siteId}"), actual.getPaths().keySet());
+        var site = actual.getComponents().getSchemas().get("SiteResponse");
+        assertEquals(12, site.getRequired().size());
+        assertEquals(Set.of("siteId", "companyId", "code", "name", "siteType", "status", "version", "effectivelyOperational",
+                "createdAt", "createdBy", "updatedAt", "updatedBy"), site.getProperties().keySet());
+        var additional = actual.getComponents().getSchemas().get("CreateSiteRequest").getAdditionalProperties();
+        assertTrue(Boolean.FALSE.equals(additional) || additional instanceof io.swagger.v3.oas.models.media.Schema<?> schema
+                && Boolean.FALSE.equals(schema.getBooleanSchemaValue()));
+        assertNotNull(actual.getPaths().get("/v1/companies/{companyId}/sites").getPost().getResponses().get("201"));
+        assertNotNull(actual.getPaths().get("/v1/companies/{companyId}/sites").getGet());
+        assertNotNull(actual.getPaths().get("/v1/companies/{companyId}/sites/{siteId}").getGet());
         assertEquals(expected.getPaths(), actual.getPaths());
         assertEquals(expected.getComponents().getSchemas(), actual.getComponents().getSchemas());
         assertEquals(expected.getComponents().getParameters(), actual.getComponents().getParameters());

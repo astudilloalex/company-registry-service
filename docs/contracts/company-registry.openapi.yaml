@@ -205,6 +205,315 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CompanyOperationalEnvelope'
+  /v1/companies/{companyId}/sites:
+    post:
+      operationId: registerCompanySite
+      summary: Register Site or replay the original local acceptance
+      description: No If-Match. Company is protected before every new Site creation; ARCHIVED rejects new registration.
+        Replay retains the original DRAFT/version 0/false result. No provider calls.
+      parameters:
+      - &id008
+        $ref: '#/components/parameters/TenantId'
+      - &id009
+        $ref: '#/components/parameters/UserId'
+      - &id010
+        $ref: '#/components/parameters/ProcessId'
+      - &id011
+        name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSiteRequest'
+            example:
+              code: sede
+              name: Compañía Ágil
+              siteType: BRANCH
+      responses:
+        '201':
+          description: Original accepted Site; replay also returns 201.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteEnvelope'
+              example:
+                status: 201
+                code: successful
+                data:
+                  siteId: 018f1234-5678-7000-8000-000000000005
+                  companyId: 018f1234-5678-7000-8000-000000000004
+                  code: SS
+                  name: COMPAÑÍA  ÁGIL
+                  siteType: BRANCH
+                  status: DRAFT
+                  version: 0
+                  effectivelyOperational: false
+                  createdAt: '2026-10-17T12:00:00.123456Z'
+                  createdBy: Actor-aB
+                  updatedAt: '2026-10-17T12:00:00.123456Z'
+                  updatedBy: Actor-aB
+        '400':
+          description: site-code-required, site-code-too-long, site-name-required, site-name-too-long, site-type-null-not-allowed,
+            site-type-not-supported, site-code-must-be-string, site-name-must-be-string, site-type-must-be-string,
+            request-body-required, request-body-invalid-json, request-body-must-be-object, request-body-contains-unknown-fields,
+            request-body-contains-duplicate-fields, company-id-invalid, site-id-invalid, idempotency-key-required,
+            idempotency-key-duplicated, idempotency-key-blank, idempotency-key-too-long, query-parameter-not-supported,
+            query-parameter-repeated, site-status-not-supported, site-page-limit-must-be-an-integer, site-page-limit-must-be-between-1-and-200,
+            site-cursor-invalid-or-incompatible
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '404':
+          description: company-not-found, site-not-found
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '409':
+          description: site-code-already-exists, headquarters-already-exists, idempotency-key-already-used-with-different-request,
+            site-registration-not-allowed-for-archived-company
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '500':
+          description: Sanitized server-error
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '503':
+          description: dependency-unavailable
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+    get:
+      operationId: listCompanySites
+      summary: List local Sites including CLOSED history
+      description: Filters combine with AND. Forward created_at DESC/id DESC pagination over current data. No global
+        count; parent ARCHIVED remains readable. Cursor binds tenant, Company, filters and order, excluding actor/process/limit.
+      parameters:
+      - *id008
+      - *id009
+      - *id010
+      - *id011
+      - name: code
+        in: query
+        schema:
+          type: string
+          minLength: 1
+        description: Exact canonical code; strip/uppercase before enforcing 64 Unicode code points.
+      - name: siteType
+        in: query
+        schema:
+          type: string
+          enum:
+          - HEADQUARTERS
+          - BRANCH
+          - WAREHOUSE
+          - OTHER
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          - CLOSED
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          maxLength: 4096
+      responses:
+        '200':
+          description: Current local Site page; nextCursor only when more results exist.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteCollectionEnvelope'
+              example:
+                status: 200
+                code: successful
+                data:
+                - siteId: 018f1234-5678-7000-8000-000000000005
+                  companyId: 018f1234-5678-7000-8000-000000000004
+                  code: SS
+                  name: COMPAÑÍA  ÁGIL
+                  siteType: BRANCH
+                  status: DRAFT
+                  version: 0
+                  effectivelyOperational: false
+                  createdAt: '2026-10-17T12:00:00.123456Z'
+                  createdBy: Actor-aB
+                  updatedAt: '2026-10-17T12:00:00.123456Z'
+                  updatedBy: Actor-aB
+                numberOfElements: 1
+        '400':
+          description: site-code-required, site-code-too-long, site-name-required, site-name-too-long, site-type-null-not-allowed,
+            site-type-not-supported, site-code-must-be-string, site-name-must-be-string, site-type-must-be-string,
+            request-body-required, request-body-invalid-json, request-body-must-be-object, request-body-contains-unknown-fields,
+            request-body-contains-duplicate-fields, company-id-invalid, site-id-invalid, idempotency-key-required,
+            idempotency-key-duplicated, idempotency-key-blank, idempotency-key-too-long, query-parameter-not-supported,
+            query-parameter-repeated, site-status-not-supported, site-page-limit-must-be-an-integer, site-page-limit-must-be-between-1-and-200,
+            site-cursor-invalid-or-incompatible
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '404':
+          description: company-not-found, site-not-found
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '500':
+          description: Sanitized server-error
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '503':
+          description: dependency-unavailable
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+  /v1/companies/{companyId}/sites/{siteId}:
+    get:
+      operationId: getCompanySite
+      summary: Read current tenant and Company qualified Site
+      description: CLOSED Sites and ARCHIVED Companies remain readable. Operational means Company ACTIVE and Site
+        ACTIVE from the same local statement.
+      parameters:
+      - *id008
+      - *id009
+      - *id010
+      - *id011
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Current local Site.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteEnvelope'
+              example:
+                status: 200
+                code: successful
+                data:
+                  siteId: 018f1234-5678-7000-8000-000000000005
+                  companyId: 018f1234-5678-7000-8000-000000000004
+                  code: SS
+                  name: COMPAÑÍA  ÁGIL
+                  siteType: BRANCH
+                  status: DRAFT
+                  version: 0
+                  effectivelyOperational: false
+                  createdAt: '2026-10-17T12:00:00.123456Z'
+                  createdBy: Actor-aB
+                  updatedAt: '2026-10-17T12:00:00.123456Z'
+                  updatedBy: Actor-aB
+        '400':
+          description: site-code-required, site-code-too-long, site-name-required, site-name-too-long, site-type-null-not-allowed,
+            site-type-not-supported, site-code-must-be-string, site-name-must-be-string, site-type-must-be-string,
+            request-body-required, request-body-invalid-json, request-body-must-be-object, request-body-contains-unknown-fields,
+            request-body-contains-duplicate-fields, company-id-invalid, site-id-invalid, idempotency-key-required,
+            idempotency-key-duplicated, idempotency-key-blank, idempotency-key-too-long, query-parameter-not-supported,
+            query-parameter-repeated, site-status-not-supported, site-page-limit-must-be-an-integer, site-page-limit-must-be-between-1-and-200,
+            site-cursor-invalid-or-incompatible
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '404':
+          description: company-not-found, site-not-found
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '500':
+          description: Sanitized server-error
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
+        '503':
+          description: dependency-unavailable
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteErrorResponse'
 components:
   parameters:
     TenantId:
@@ -735,6 +1044,193 @@ components:
         data:
           $ref: '#/components/schemas/CompanyOperationalResponse'
       additionalProperties: false
+    SiteResponse:
+      type: object
+      required:
+      - siteId
+      - companyId
+      - code
+      - name
+      - siteType
+      - status
+      - version
+      - effectivelyOperational
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      properties:
+        siteId:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        siteType:
+          type: string
+          enum:
+          - HEADQUARTERS
+          - BRANCH
+          - WAREHOUSE
+          - OTHER
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+          - CLOSED
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        effectivelyOperational:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          minLength: 1
+          maxLength: 128
+        updatedBy:
+          type: string
+          minLength: 1
+          maxLength: 128
+      additionalProperties: false
+    CreateSiteRequest:
+      type: object
+      required:
+      - code
+      - name
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: Required nonblank business text. Strip and uppercase before enforcing the 64 Unicode code
+            point limit; the raw input may contain surrounding whitespace.
+        name:
+          type: string
+          minLength: 1
+          description: Required nonblank business text. Strip and uppercase before enforcing the 200 Unicode code
+            point limit; the raw input may contain surrounding whitespace.
+        siteType:
+          type: string
+          enum:
+          - HEADQUARTERS
+          - BRANCH
+          - WAREHOUSE
+          - OTHER
+          default: BRANCH
+      additionalProperties: false
+    SiteEnvelope:
+      type: object
+      required:
+      - status
+      - code
+      - data
+      additionalProperties: false
+      properties:
+        status:
+          type: integer
+          enum:
+          - 200
+          - 201
+        code:
+          const: successful
+        data:
+          $ref: '#/components/schemas/SiteResponse'
+    SiteCollectionEnvelope:
+      type: object
+      required:
+      - status
+      - code
+      - data
+      - numberOfElements
+      additionalProperties: false
+      properties:
+        status:
+          type: integer
+          const: 200
+        code:
+          const: successful
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SiteResponse'
+        numberOfElements:
+          type: integer
+          minimum: 0
+          maximum: 200
+        nextCursor:
+          type: string
+          maxLength: 4096
+    SiteErrorResponse:
+      type: object
+      required:
+      - status
+      - code
+      additionalProperties: false
+      properties:
+        status:
+          type: integer
+          enum:
+          - 400
+          - 404
+          - 409
+          - 500
+          - 503
+        code:
+          type: string
+          enum:
+          - company-not-found
+          - site-not-found
+          - site-code-already-exists
+          - headquarters-already-exists
+          - idempotency-key-already-used-with-different-request
+          - site-registration-not-allowed-for-archived-company
+          - dependency-unavailable
+          - site-code-required
+          - site-code-too-long
+          - site-name-required
+          - site-name-too-long
+          - site-type-null-not-allowed
+          - site-type-not-supported
+          - site-code-must-be-string
+          - site-name-must-be-string
+          - site-type-must-be-string
+          - request-body-required
+          - request-body-invalid-json
+          - request-body-must-be-object
+          - request-body-contains-unknown-fields
+          - request-body-contains-duplicate-fields
+          - company-id-invalid
+          - site-id-invalid
+          - idempotency-key-required
+          - idempotency-key-duplicated
+          - idempotency-key-blank
+          - idempotency-key-too-long
+          - query-parameter-not-supported
+          - query-parameter-repeated
+          - site-status-not-supported
+          - site-page-limit-must-be-an-integer
+          - site-page-limit-must-be-between-1-and-200
+          - site-cursor-invalid-or-incompatible
+          - process-id-invalid
+          - tenant-id-invalid
+          - user-id-invalid
+          - server-error
   examples:
     CompanySuccess:
       summary: Original enriched accepted Company, including masked identifiers.
@@ -830,7 +1326,7 @@ components:
       value:
         status: 200
         code: successful
-        data: &id008
+        data: &id012
           companyId: 0199e000-0000-7000-8000-000000000001
           partyId: 018f1234-5678-7000-8000-000000000004
           code: ACME
@@ -879,7 +1375,7 @@ components:
         status: 200
         code: successful
         data:
-        - *id008
+        - *id012
         numberOfElements: 1
   responses:
     BadRequest:
