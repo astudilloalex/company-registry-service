@@ -7,13 +7,13 @@ Change: `add-company-lifecycle-management`. Review date: 2026-10-18
 
 | Criteria | Executable evidence | Result |
 | --- | --- | --- |
-| AC01–AC02 | CompanyLifecyclePolicyTest, CompanyActivationPolicyTest, CompanyLifecycleMappingTest, CompanyLifecycleHttpTest | Domain, SQL and initial HTTP suites passed; final regression in progress |
-| AC03–AC04 | CompanyLifecycleMappingTest resolves only current headquarters; CompanyLifecycleHttpTest checks absent/inactive/closed history/replacement without children | Final regression in progress |
-| AC05–AC06 | Real Party HTTP stub, exact context propagation, minimal eligibility, absence/kind/state/contract/transport failures and LifecycleRecoveryTest shared deadline/cancellation | Unit/recovery suites passed; final HTTP regression in progress |
-| AC07–AC08 | CompanyLifecycleHttpTest full cycle/current Site operativity/original Site no-op replay; unchanged Site/address/contact snapshots | Final regression in progress |
-| AC09–AC10 | Actual archive routes reject HU02/HU03/HU04/HU05 including no-op; CompanyLifecycleConcurrencyHttpTest covers every Site type/writer | Concurrency matrix passed; final regression in progress |
+| AC01–AC02 | CompanyLifecyclePolicyTest, CompanyActivationPolicyTest, CompanyLifecycleMappingTest, CompanyLifecycleHttpTest | Passed in the complete JVM/PostgreSQL regression |
+| AC03–AC04 | CompanyLifecycleMappingTest resolves only current headquarters; CompanyLifecycleHttpTest checks absent/inactive/closed history/replacement without children | Passed in the complete JVM/PostgreSQL regression |
+| AC05–AC06 | Real Party HTTP stub, exact context propagation, minimal eligibility, absence/kind/state/contract/transport failures and LifecycleRecoveryTest shared deadline/cancellation | Passed in the complete JVM/PostgreSQL regression |
+| AC07–AC08 | CompanyLifecycleHttpTest full cycle/current Site operativity/original Site no-op replay; unchanged Site/address/contact snapshots | Passed in the complete JVM/PostgreSQL regression |
+| AC09–AC10 | Actual archive routes reject HU02/HU03/HU04/HU05 including no-op; CompanyLifecycleConcurrencyHttpTest covers every Site type/writer | Concurrency matrix passed; complete JVM/PostgreSQL regression passed |
 | AC11 | ordered real HTTP archives and effective/no-op HU02 PATCH, independently observed SQL row waits and fresh revision reads | Passed |
-| AC12 | Namespace/vector/key rotation tests, JSONB codec, equivalent/different/cross-Company key races and rollback, packaged/native restart checks | Unit and cross-Company collision passed; final rollback/process checks in progress |
+| AC12 | Namespace/vector/key rotation tests, JSONB codec, equivalent/different/cross-Company key races and rollback, packaged/native restart checks | All key races including competitor rollback passed; packaged/native process checks in progress |
 | AC13 | Three operations × three outbox modes × optional key; rollback after each mandatory write; real events/schema/envelope/archival producer tests | LifecycleRecoveryTest and contract suites passed; native/OCI checks in progress |
 | AC14 | Actual activate vs headquarters deactivate/close/reclassification in both orders; actual archive vs HU04/HU05 writers for all four Site types; held Party allows Company/Site writes | Passed |
 
@@ -39,13 +39,16 @@ one missing JSON Content-Type, and eight after a restricted-resource application
 restart reused a closed Hibernate factory. LifecycleHttpProfile now shares one
 isolated database/provider application for both HU03 HTTP classes. That run's
 other 370 cases passed, including all prior capabilities and the actual AC11/AC14
-matrices. A new complete run is required before final acceptance.
+matrices. The corrected complete run passed all 379 cases with zero failures, errors
+or skips, plus build and verifyProductionIsolation, in 6m20s. Its reports are in
+`build/hu03-evidence/final-jvm/results/test/` and log in
+`build/hu03-evidence/final-jvm.log`.
 
-Final required stages currently in progress:
+Executed JVM command and remaining process stages:
 
 ```shell
 ./gradlew -I docs/operations/hu03-test-results.gradle -Phu03EvidenceRun=final-jvm test build verifyProductionIsolation
-./gradlew -I docs/operations/hu03-test-results.gradle -Phu03EvidenceRun=packaged-jvm quarkusIntTest
+./gradlew -I docs/operations/hu03-test-results.gradle -Phu03EvidenceRun=packaged-jvm test --tests '*LifecycleRecoveryTest' --tests '*LifecycleFingerprintV1Test' quarkusIntTest verifyProductionIsolation
 ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
 ./gradlew -I docs/operations/hu03-test-results.gradle -Phu03EvidenceRun=native-process quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false
 podman build -f src/main/docker/Dockerfile.native-micro -t company-registry-service:hu03-native .
