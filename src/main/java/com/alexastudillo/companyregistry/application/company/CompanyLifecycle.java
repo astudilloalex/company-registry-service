@@ -34,7 +34,7 @@ public final class CompanyLifecycle {
             Objects.requireNonNull(companyId, "companyId");
             Objects.requireNonNull(operation, "operation");
             if (expectedVersion < 0) throw new IllegalArgumentException("expected-version-invalid");
-            if (idempotencyKey != null) OpaqueValue.required(idempotencyKey, 128);
+            if (idempotencyKey != null) idempotencyKey = OpaqueValue.required(idempotencyKey, 128);
         }
     }
 }

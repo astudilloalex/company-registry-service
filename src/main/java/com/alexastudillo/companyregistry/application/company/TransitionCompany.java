@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 public final class TransitionCompany {
     public record Storage(AtomicOperation atomic, CompanyRepository companies, SiteRepository sites, LifecycleEvents events) {}
     public record Idempotency(CompletionRepository completions, LifecycleFingerprints fingerprints, LifecycleResults results) {}
-    private record Preparation(CompanyRecord company, boolean replayed) {}
+    private record Preparation(CompanyRecord company, boolean replayed, CompanyStatus target) {}
     private record PartyObservation(PartyReference party, ReferenceFailure failure) {}
 
     private final Storage storage;
@@ -77,7 +77,7 @@ public final class TransitionCompany {
             var ready = command.operation() == CompanyLifecycle.Operation.ACTIVATE
                     ? headquarters(command, deadline).invoke(_ -> eligible(observation))
                     : Uni.createFrom().voidItem();
-            return ready.chain(() -> accept(command, key, prepared.company(), deadline));
+            return ready.chain(() -> accept(command, key, prepared, deadline));
         })).onFailure(this::invalidWrite).transform(_ -> new IllegalStateException("company-lifecycle-write-failed"))
                 .onFailure(this::recoverable).recoverWithUni(failure -> recover(command, key, deadline, (PersistenceFailure) failure));
     }
@@ -85,13 +85,16 @@ public final class TransitionCompany {
     private Uni<Preparation> protectedCompany(CompanyLifecycle.Command command, CompletionKey key, LifecycleDeadline deadline) {
         return query(deadline, () -> storage.companies().findForUpdate(command.context().tenantId(), command.companyId()))
                 .chain(company -> lookup(key, deadline).map(stored -> {
-                    if (stored != null) return new Preparation(replay(command, stored), true);
+                    if (stored != null) {
+                        var accepted = replay(command, stored);
+                        return new Preparation(accepted, true, accepted.company().status());
+                    }
                     if (company == null) throw new CompanyLifecycleFailure(CompanyLifecycleFailure.Kind.COMPANY_NOT_FOUND);
                     if (company.company().version().value() != command.expectedVersion()) {
                         throw new CompanyLifecycleFailure(CompanyLifecycleFailure.Kind.STALE_VERSION);
                     }
-                    CompanyLifecyclePolicy.transition(company.company().status(), command.operation().target());
-                    return new Preparation(company, false);
+                    var target = CompanyLifecyclePolicy.transition(company.company().status(), command.operation().target());
+                    return new Preparation(company, false, target);
                 }));
     }
 
@@ -108,11 +111,12 @@ public final class TransitionCompany {
                 : new CompanyActivationPolicy.PartyFacts(party.legalEntity(), party.active()));
     }
 
-    private Uni<CompanyRecord> accept(CompanyLifecycle.Command command, CompletionKey key, CompanyRecord previous,
+    private Uni<CompanyRecord> accept(CompanyLifecycle.Command command, CompletionKey key, Preparation prepared,
             LifecycleDeadline deadline) {
+        var previous = prepared.company();
         var company = previous.company();
         var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
-        var row = new CompanyRecord(new Company(company.id(), company.tenantId(), company.partyId(), command.operation().target(),
+        var row = new CompanyRecord(new Company(company.id(), company.tenantId(), company.partyId(), prepared.target(),
                 company.version().next()), previous.code(), previous.operatingName(), previous.description(), previous.logoUrl(),
                 new Audit(previous.audit().createdAt(), previous.audit().createdBy(), now, command.context().actor()));
         return query(deadline, () -> storage.companies().transition(row, command.expectedVersion(), company.status()))
