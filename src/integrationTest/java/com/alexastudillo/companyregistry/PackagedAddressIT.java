@@ -85,22 +85,7 @@ class PackagedAddressIT {
                         + "\",\"canonicalCode\":\"EC-P\",\"status\":\"ACTIVE\"}}");
         var attempts = new ArrayList<Accepted>();
         try (var client = HttpClient.newHttpClient()) {
-            var body = "{\"addressType\":\"physical\",\"countryCode\":\"ec\",\"addressLine1\":\" avenida  josé \",\"administrativeDivisionCode\":\"ec-p\",\"latitude\":-0.1234560,\"longitude\":78.123456000}";
-            var created = accept(client, runningBase, f, new Call(f.path(), "POST", body, 0, "create"), 201); attempts.add(created);
-            assertEquals(new java.math.BigDecimal("-0.123456"), created.data().path("latitude").decimalValue());
-            assertEquals(new java.math.BigDecimal("78.123456"), created.data().path("longitude").decimalValue());
-            assertEquals(14, created.data().size());
-            assertEquals("EC-P", created.data().path("administrativeDivisionCode").asText());
-            var address = created.data().path("addressId").asText(); var detail = f.path() + "/" + address;
-            var patch = accept(client, runningBase, f, new Call(detail, "PATCH", "{\"isPrimary\":true,\"houseNumber\":\"12a\",\"latitude\":90.0000000,\"longitude\":-180.0000000}", 1, "patch"), 200); attempts.add(patch);
-            assertEquals(0, patch.data().path("latitude").decimalValue().compareTo(java.math.BigDecimal.valueOf(90)));
-            assertEquals(0, patch.data().path("longitude").decimalValue().compareTo(java.math.BigDecimal.valueOf(-180)));
-            var noop = accept(client, runningBase, f, new Call(detail, "PATCH", "{}", 2, "noop"), 200); attempts.add(noop);
-            assertEquals(patch.data(), noop.data());
-            var deleted = accept(client, runningBase, f, new Call(detail, "DELETE", null, 2, "delete"), 200); attempts.add(deleted);
-            assertEquals(5, deleted.data().size());
-            assertEquals(404, send(client, runningBase, f, new Call(detail, "GET", null, 0, null)).status());
-            assertEquals(200, send(client, runningBase, f, new Call(f.path(), "GET", null, 0, null)).status());
+            assertAddressLifecycle(client, f, attempts);
         }
         try (var c = db(); var s = c.createStatement()) {
             s.execute("UPDATE company_sites SET status='CLOSED' WHERE id='" + f.site() + "'");
@@ -119,11 +104,7 @@ class PackagedAddressIT {
                     try { return client.send(HttpRequest.newBuilder(base.resolve("/q/health/ready")).GET().build(), HttpResponse.BodyHandlers.discarding()).statusCode() == 200; }
                     catch (java.io.IOException _) { return false; }
                 });
-                for (var attempt : attempts) {
-                    var replay = send(client, base, f, new Call(attempt.path(), attempt.method(), attempt.body(), attempt.expected(), attempt.key()));
-                    assertEquals(attempt.status(), replay.status(), replay.body().toString());
-                    assertEquals(attempt.data(), replay.body().path("data"));
-                }
+                assertAttemptsReplay(client, base, f, attempts);
                 localModeFixture(client, base, mode);
                 var openapi = client.send(HttpRequest.newBuilder(base.resolve("/q/openapi")).header("Accept", "application/json").GET().build(), HttpResponse.BodyHandlers.ofString());
                 OpenApiAssertions.publishedMatchesSource(Files.readString(Path.of("docs/contracts/company-registry.openapi.yaml")), openapi.body());
@@ -135,6 +116,41 @@ class PackagedAddressIT {
         assertTrue(stub.requests().isEmpty());
     }
 
+    private void assertAddressLifecycle(HttpClient client, Fixture f, List<Accepted> attempts) throws Exception {
+        var body = "{\"addressType\":\"physical\",\"countryCode\":\"ec\",\"addressLine1\":\" avenida  josé \",\"administrativeDivisionCode\":\"ec-p\",\"latitude\":-0.1234560,\"longitude\":78.123456000}";
+        var created = accept(client, runningBase, f, new Call(f.path(), "POST", body, 0, "create"), 201); attempts.add(created);
+        assertAll(
+                () -> assertEquals(new java.math.BigDecimal("-0.123456"), created.data().path("latitude").decimalValue()),
+                () -> assertEquals(new java.math.BigDecimal("78.123456"), created.data().path("longitude").decimalValue()),
+                () -> assertEquals(14, created.data().size()),
+                () -> assertEquals("EC-P", created.data().path("administrativeDivisionCode").asText()));
+        var address = created.data().path("addressId").asText(); var detail = f.path() + "/" + address;
+        var patch = accept(client, runningBase, f, new Call(detail, "PATCH", "{\"isPrimary\":true,\"houseNumber\":\"12a\",\"latitude\":90.0000000,\"longitude\":-180.0000000}", 1, "patch"), 200); attempts.add(patch);
+        var current = send(client, runningBase, f, new Call(detail, "GET", null, 0, null));
+        assertAll(
+                () -> assertEquals(0, patch.data().path("latitude").decimalValue().compareTo(java.math.BigDecimal.valueOf(90))),
+                () -> assertEquals(0, patch.data().path("longitude").decimalValue().compareTo(java.math.BigDecimal.valueOf(-180))),
+                () -> assertEquals(200, current.status()),
+                () -> assertEquals(patch.data(), current.body().path("data")));
+        OpenApiAssertions.addressResponseMatches(Files.readString(Path.of("docs/contracts/company-registry.openapi.yaml")), current.body(), "AddressEnvelope");
+        var noop = accept(client, runningBase, f, new Call(detail, "PATCH", "{}", 2, "noop"), 200); attempts.add(noop);
+        var deleted = accept(client, runningBase, f, new Call(detail, "DELETE", null, 2, "delete"), 200); attempts.add(deleted);
+        assertAll(
+                () -> assertEquals(patch.data(), noop.data()),
+                () -> assertEquals(5, deleted.data().size()),
+                () -> assertEquals(404, send(client, runningBase, f, new Call(detail, "GET", null, 0, null)).status()),
+                () -> assertEquals(200, send(client, runningBase, f, new Call(f.path(), "GET", null, 0, null)).status()));
+    }
+
+    private void assertAttemptsReplay(HttpClient client, URI base, Fixture f, List<Accepted> attempts) throws Exception {
+        for (var attempt : attempts) {
+            var replay = send(client, base, f, new Call(attempt.path(), attempt.method(), attempt.body(), attempt.expected(), attempt.key()));
+            assertAll(
+                    () -> assertEquals(attempt.status(), replay.status(), replay.body().toString()),
+                    () -> assertEquals(attempt.data(), replay.body().path("data")));
+        }
+    }
+
     private void localModeFixture(HttpClient client, URI base, String mode) throws Exception {
         var f = fixture();
         try (var c = db(); var s = c.createStatement()) {
@@ -142,20 +158,23 @@ class PackagedAddressIT {
                     + f.site() + "','PHYSICAL','EC','LINE','Creator','Creator')");
         }
         var page = send(client, base, f, new Call(f.path() + "?limit=1", "GET", null, 0, null));
-        assertEquals(200, page.status()); assertEquals(1, page.body().path("numberOfElements").asInt());
-        var cursor = page.body().path("nextCursor").asText(); assertFalse(cursor.isBlank());
+        var cursor = page.body().path("nextCursor").asText();
         var next = send(client, base, f, new Call(f.path() + "?limit=200&cursor=" + cursor, "GET", null, 0, null));
-        assertEquals(200, next.status()); assertEquals(2, next.body().path("numberOfElements").asInt());
+        assertAll(
+                () -> assertEquals(200, page.status()),
+                () -> assertEquals(1, page.body().path("numberOfElements").asInt()),
+                () -> assertFalse(cursor.isBlank()),
+                () -> assertEquals(200, next.status()),
+                () -> assertEquals(2, next.body().path("numberOfElements").asInt()));
+        OpenApiAssertions.addressResponseMatches(Files.readString(Path.of("docs/contracts/company-registry.openapi.yaml")), page.body(), "AddressCollectionEnvelope");
         var detail = f.path() + "/" + page.body().path("data").get(0).path("addressId").asText();
         accept(client, base, f, new Call(detail, "PATCH", "{\"houseNumber\":\"12A\"}", 0, "local"), 200);
         accept(client, base, f, new Call(detail, "DELETE", "{}", 1, "remove"), 200);
         try (var c = db(); var s = c.createStatement(); var r = s.executeQuery("SELECT * FROM company_outbox_events WHERE aggregate_id='" + f.site() + "' ORDER BY aggregate_version")) {
             int count = 0;
             while (r.next()) {
-                count++; assertEquals(count, r.getLong("aggregate_version")); assertEquals("company.site.updated.v1", r.getString("event_type"));
+                count++;
                 var payload = json.readTree(r.getString("payload"));
-                assertEquals(Set.of("siteId", "companyId", "code", "name", "siteType", "status", "updatedAt", "updatedBy"), fieldNames(payload));
-                assertEquals("PENDING", r.getString("status")); assertEquals(0, r.getInt("publish_attempts"));
                 var event = json.createObjectNode();
                 event.put("eventId", r.getString("id")); event.put("tenantId", r.getString("tenant_id"));
                 event.put("aggregateType", r.getString("aggregate_type")); event.put("aggregateId", r.getString("aggregate_id"));
@@ -164,7 +183,14 @@ class PackagedAddressIT {
                 event.put("correlationId", r.getString("correlation_id")); event.putNull("causationId"); event.set("payload", payload);
                 var schema = com.networknt.schema.SchemaRegistry.withDefaultDialect(com.networknt.schema.SpecificationVersion.DRAFT_2020_12)
                         .getSchema(Files.readString(Path.of("docs/contracts/events/company.site.updated.v1.schema.json")), com.networknt.schema.InputFormat.JSON);
-                assertTrue(schema.validate(event).isEmpty(), () -> schema.validate(event).toString());
+                int expectedVersion = count;
+                assertAll(
+                        () -> assertEquals(expectedVersion, r.getLong("aggregate_version")),
+                        () -> assertEquals("company.site.updated.v1", r.getString("event_type")),
+                        () -> assertEquals(Set.of("siteId", "companyId", "code", "name", "siteType", "status", "updatedAt", "updatedBy"), fieldNames(payload)),
+                        () -> assertEquals("PENDING", r.getString("status")),
+                        () -> assertEquals(0, r.getInt("publish_attempts")),
+                        () -> assertTrue(schema.validate(event).isEmpty(), () -> schema.validate(event).toString()));
             }
             assertEquals(mode.equals("disabled") ? 0 : 2, count);
         }
