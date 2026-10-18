@@ -126,6 +126,7 @@ tasks.register("verifyProductionIsolation") {
         var updateExampleFound = false
         var siteContractFound = false
         var siteExampleFound = false
+        val siteMutationContracts = mutableSetOf<String>()
         jars.forEach { jar ->
             JarFile(jar).use { archive ->
                 archive.entries().asSequence().forEach { entry ->
@@ -138,6 +139,11 @@ tasks.register("verifyProductionIsolation") {
                     if (entry.name == "META-INF/contracts/events/company.updated.v1.example.json") updateExampleFound = true
                     if (entry.name == "META-INF/contracts/events/company.site.created.v1.schema.json") siteContractFound = true
                     if (entry.name == "META-INF/contracts/events/company.site.created.v1.example.json") siteExampleFound = true
+                    if (entry.name in setOf(
+                            "META-INF/contracts/events/company.site.updated.v1.schema.json",
+                            "META-INF/contracts/events/company.site.updated.v1.example.json",
+                            "META-INF/contracts/events/company.site.closed.v1.schema.json",
+                            "META-INF/contracts/events/company.site.closed.v1.example.json")) siteMutationContracts.add(entry.name)
                 }
             }
         }
@@ -145,6 +151,7 @@ tasks.register("verifyProductionIsolation") {
         check(eventContractFound) { "Packaged creation event contract is missing" }
         check(updateContractFound && updateExampleFound) { "Packaged update event contract/example is missing" }
         check(siteContractFound && siteExampleFound) { "Packaged Site event contract/example is missing" }
+        check(siteMutationContracts.size == 4) { "Packaged Site mutation event contracts/examples are missing" }
     }
 }
 

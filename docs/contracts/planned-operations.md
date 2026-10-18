@@ -1,9 +1,11 @@
 # Planned business operations and shared conventions
 
-The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01/HU02/HU04 operations:
+The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01/HU02/HU04/HU05 operations:
 `POST /v1/companies`, `GET /v1/companies/{companyId}`, `GET /v1/companies` and
 `PATCH /v1/companies/{companyId}`, `POST /v1/companies/{companyId}/sites`,
 `GET /v1/companies/{companyId}/sites/{siteId}` and `GET /v1/companies/{companyId}/sites`.
+HU05 adds PATCH of Site and POST activate/deactivate/close under the Site detail path.
+See [HU05 contract](company-site-lifecycle-management.md) for version, state, no-op and historical replay.
 See [HU04 contract](company-site-registration-and-retrieval.md) for local Site reads,
 replay, canonical filters and specific errors. See [HU02 contract](company-information-management.md)
 for runnable modification/cleaning and replay rules.
