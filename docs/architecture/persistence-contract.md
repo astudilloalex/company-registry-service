@@ -191,3 +191,21 @@ created_at/id descending and preserve both values as the forward boundary.
 Cursor scope includes tenant, Company, effective filters and order with the
 company.site.cursor.v1 HMAC domain; actor/process/limit are excluded. No global
 count, Party, address/contact load or write lock belongs to this read path.
+
+## HU05 accepted result format 1
+
+HU05 uses its own codec, preserving the HU04 DRAFT/0 creation format. Its closed
+snapshot has `site`, `companyStatus` and `effectivelyOperational`; Site retains the
+full qualified identity, code/name/type/status/revision and audit. Original Company
+status verifies the stored boolean without any query to present aggregate state.
+Only the twelve Site response fields are public. UPDATE may retain expectedVersion
+(no-op) or advance once; lifecycle commands must advance once and match their target
+state. A no-op completion has its own acceptance time/actor and need not match Site's
+unchanged update audit. Types, ownership, UTC microseconds, status and revision are
+validated; corruption or unsupported format/policy/key is an internal error.
+
+Policy 1 signs tenant/operation/Company/Site/original version and canonical partial
+intent with presence. Each namespace independently owns tenant/operation/key. Retain
+formats, policies, snapshots and keyring material without TTL. Rotation to K2 retains
+K1; rollback preserves V5 and all confirmed results/events, using compatible code or
+suspending affected routes. Never reconstruct or rewrite history from current rows.

@@ -1,0 +1,22 @@
+{
+  "eventId": "0199e000-0000-7000-8000-000000000099",
+  "tenantId": "018f1234-5678-7000-8000-000000000001",
+  "aggregateType": "COMPANY_SITE",
+  "aggregateId": "0199e000-0000-7000-8000-000000000001",
+  "aggregateVersion": 2,
+  "eventType": "company.site.updated.v1",
+  "eventSchemaVersion": 1,
+  "occurredAt": "2026-10-18T15:00:00.123456Z",
+  "correlationId": "018f1234-5678-7000-8000-000000000002",
+  "causationId": null,
+  "payload": {
+    "siteId": "0199e000-0000-7000-8000-000000000001",
+    "companyId": "018f1234-5678-7000-8000-000000000004",
+    "code": "SEDE",
+    "name": "COMPAÑÍA  ÁGIL",
+    "siteType": "BRANCH",
+    "status": "ACTIVE",
+    "updatedAt": "2026-10-18T15:00:00.123456Z",
+    "updatedBy": "ChildWriter-aB"
+  }
+}

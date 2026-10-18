@@ -55,7 +55,7 @@ class UpdateMetadataMigrationTest extends SqlIntegritySupport {
         assertEquals(completion, scalar("SELECT row_to_json(c)::text FROM company_idempotency_records c WHERE operation='company.create.v1'"));
         assertEquals(event, scalar("SELECT row_to_json(c)::text FROM company_outbox_events c"));
         assertEquals("6", scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema='update_upgrade' AND table_type='BASE TABLE'"));
-        assertEquals("4", flyway.info().current().getVersion().getVersion());
+        assertEquals("5", flyway.info().current().getVersion().getVersion());
         assertEquals("-272976494", scalar("SELECT checksum::text FROM public.flyway_schema_history WHERE version='1'"));
     }
 }
