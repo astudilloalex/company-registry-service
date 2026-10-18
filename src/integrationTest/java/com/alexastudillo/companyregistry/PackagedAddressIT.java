@@ -80,15 +80,21 @@ class PackagedAddressIT {
         var f = fixture(); var stub = ProcessEnvironmentResource.stub; stub.reset();
         var country = UUID.randomUUID();
         stub.reply("/api/v1/countries/by-alpha2/EC", 200, "{\"status\":200,\"code\":\"successful\",\"data\":{\"id\":\"" + country + "\",\"alpha2Code\":\"EC\",\"status\":\"ACTIVE\"}}");
+        stub.reply("/api/v1/countries/" + country + "/administrative-divisions/by-canonical-code/EC-P", 200,
+                "{\"status\":200,\"code\":\"successful\",\"data\":{\"id\":\"" + UUID.randomUUID() + "\",\"countryId\":\"" + country
+                        + "\",\"canonicalCode\":\"EC-P\",\"status\":\"ACTIVE\"}}");
         var attempts = new ArrayList<Accepted>();
         try (var client = HttpClient.newHttpClient()) {
-            var body = "{\"addressType\":\"physical\",\"countryCode\":\"ec\",\"addressLine1\":\" avenida  josé \",\"latitude\":-0.1234560,\"longitude\":78.123456000}";
+            var body = "{\"addressType\":\"physical\",\"countryCode\":\"ec\",\"addressLine1\":\" avenida  josé \",\"administrativeDivisionCode\":\"ec-p\",\"latitude\":-0.1234560,\"longitude\":78.123456000}";
             var created = accept(client, runningBase, f, new Call(f.path(), "POST", body, 0, "create"), 201); attempts.add(created);
             assertEquals(new java.math.BigDecimal("-0.123456"), created.data().path("latitude").decimalValue());
             assertEquals(new java.math.BigDecimal("78.123456"), created.data().path("longitude").decimalValue());
-            assertEquals(13, created.data().size());
+            assertEquals(14, created.data().size());
+            assertEquals("EC-P", created.data().path("administrativeDivisionCode").asText());
             var address = created.data().path("addressId").asText(); var detail = f.path() + "/" + address;
-            var patch = accept(client, runningBase, f, new Call(detail, "PATCH", "{\"isPrimary\":true,\"houseNumber\":\"12a\"}", 1, "patch"), 200); attempts.add(patch);
+            var patch = accept(client, runningBase, f, new Call(detail, "PATCH", "{\"isPrimary\":true,\"houseNumber\":\"12a\",\"latitude\":90.0000000,\"longitude\":-180.0000000}", 1, "patch"), 200); attempts.add(patch);
+            assertEquals(0, patch.data().path("latitude").decimalValue().compareTo(java.math.BigDecimal.valueOf(90)));
+            assertEquals(0, patch.data().path("longitude").decimalValue().compareTo(java.math.BigDecimal.valueOf(-180)));
             var noop = accept(client, runningBase, f, new Call(detail, "PATCH", "{}", 2, "noop"), 200); attempts.add(noop);
             assertEquals(patch.data(), noop.data());
             var deleted = accept(client, runningBase, f, new Call(detail, "DELETE", null, 2, "delete"), 200); attempts.add(deleted);

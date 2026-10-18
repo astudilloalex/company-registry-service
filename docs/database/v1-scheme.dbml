@@ -116,6 +116,7 @@ Table company_site_addresses {
     id [pk, name: 'pk_company_site_addresses']
     (site_id, address_type) [unique, name: 'uq_company_site_primary_address', note: 'PARTIAL: is_primary = true AND deleted_at IS NULL']
     (site_id, address_type) [name: 'ix_company_site_addresses_current', note: 'PARTIAL: deleted_at IS NULL']
+    (site_id, created_at, id) [name: 'ix_company_site_addresses_page', note: 'V7 PARTIAL: deleted_at IS NULL; created_at DESC, id DESC']
   }
   Note: 'Country ^[A-Z]{2}$; business text canonical uppercase. Coordinates both NULL or both supplied, latitude [-90,90], longitude [-180,180]. Deletion requires timestamp >= creation, nonblank actor and is_primary=false. trg_company_site_addresses_immutable protects id/site_id/created_at/by. Tenant and Company queries must join Site.'
 }
@@ -146,7 +147,7 @@ Table company_idempotency_records {
   operation varchar(64) [not null]
   idempotency_key varchar(128) [not null]
   request_hash char(64) [not null, note: 'Lowercase hexadecimal HMAC fingerprint.']
-  fingerprint_version smallint [note: 'V2–V6: positive policy version; required for Company creation/update/activate/deactivate/archive and Site creation/update/activate/deactivate/close; historical technical namespaces may omit both metadata fields.']
+  fingerprint_version smallint [note: 'V2–V7: positive policy version; required for Company creation/update/activate/deactivate/archive and Site creation/update/activate/deactivate/close; historical technical namespaces may omit both metadata fields.']
   fingerprint_key_id varchar(64) [note: 'V2: external key identity; ASCII letters/digits/underscore/hyphen; required together with fingerprint_version. Never secret material.']
   company_id uuid [not null]
   site_id uuid
@@ -160,7 +161,7 @@ Table company_idempotency_records {
     (tenant_id, operation, idempotency_key) [pk, name: 'pk_company_idempotency_records']
     (tenant_id, company_id, site_id) [name: 'ix_company_idempotency_owner']
   }
-  Note: 'Nonblank operation/key/actor; hash ^[0-9a-f]{64}$; expected version NULL or >=0; HTTP 200..299; snapshot version >0 and JSON object. Nullable site_id allows Company-only completion (default FK MATCH SIMPLE). V3 ck_company_idempotency_update_metadata requires update provenance, nonnegative expected version, HTTP 200 and null Site. Company creation retains HTTP 201 and null Site/precondition. V4 ck_company_idempotency_site_creation_metadata requires owned Site, null expected version, HTTP 201 and provenance. V5 ck_company_idempotency_site_mutation_metadata requires owned Site, nonnegative expected version, HTTP 200 and provenance for company.site.{update,activate,deactivate,close}.v1. V6 ck_company_idempotency_lifecycle_metadata requires null Site, nonnegative expected version, HTTP 200 and provenance for company.{activate,deactivate,archive}.v1. Snapshot is original response, not current aggregate state.'
+  Note: 'Nonblank operation/key/actor; hash ^[0-9a-f]{64}$; expected version NULL or >=0; HTTP 200..299; snapshot version >0 and JSON object. Nullable site_id allows Company-only completion (default FK MATCH SIMPLE). V3 ck_company_idempotency_update_metadata requires update provenance, nonnegative expected version, HTTP 200 and null Site. Company creation retains HTTP 201 and null Site/precondition. V4 ck_company_idempotency_site_creation_metadata requires owned Site, null expected version, HTTP 201 and provenance. V5 ck_company_idempotency_site_mutation_metadata requires owned Site, nonnegative expected version, HTTP 200 and provenance for company.site.{update,activate,deactivate,close}.v1. V6 ck_company_idempotency_lifecycle_metadata requires null Site, nonnegative expected version, HTTP 200 and provenance for company.{activate,deactivate,archive}.v1. V7 ck_company_idempotency_site_address_metadata requires owned Site, nonnegative original expected version, provenance and HTTP 201 for company.site.address.create.v1 or 200 for update/delete. Snapshot is original response, not current aggregate state.'
 }
 
 Table company_outbox_events {
