@@ -39,14 +39,22 @@ class SiteClosedContractTest {
                 .getSchema(Files.readString(Path.of("docs/contracts/events/company.site.closed.v1.schema.json")),com.networknt.schema.InputFormat.JSON);
         var example=json.readTree(Files.readString(Path.of("docs/contracts/events/company.site.closed.v1.example.json")));
         assertTrue(schema.validate(example).isEmpty());
-        var ids=new UuidV7Generator();var now=Instant.parse("2026-10-17T14:30:00.123456Z");
         var context=new OperationContext(UUID.randomUUID(),"Actor-aB",UUID.randomUUID().toString());
-        var command=new SiteRegistration.Command(context,"Key-aB",ids.next(),"acme","ágil",com.alexastudillo.companyregistry.domain.model.FieldChange.absent());
-        var registered = SiteRegistration.candidate(command,Clock.fixed(now,ZoneOffset.UTC),ids);
-        var row = mutated(registered);
-        var candidate=SiteMutated.candidate(ids.next(),row,context);var outbox=SiteMutatedOutbox.row(candidate);
+        var candidate=sampleCandidate(context);var outbox=SiteMutatedOutbox.row(candidate);
         var event=json.valueToTree(SiteMutatedOutbox.envelope(outbox));
         assertTrue(schema.validate(event).isEmpty(),()->schema.validate(event).toString());
+        for(var field:List.of("party","identifiers","description","logoUrl","effectivelyOperational","changedFields","address","contact")) {
+            ObjectNode invalid=event.deepCopy();((ObjectNode)invalid.path("payload")).put(field,"forbidden");assertFalse(schema.validate(invalid).isEmpty());
+        }
+        ObjectNode wrongStatus=event.deepCopy();((ObjectNode)wrongStatus.path("payload")).put("status","ACTIVE");assertFalse(schema.validate(wrongStatus).isEmpty());
+        ObjectNode wrong=event.deepCopy();wrong.put("eventSchemaVersion",2);assertFalse(schema.validate(wrong).isEmpty());
+        try(var resource=getClass().getResourceAsStream("/META-INF/contracts/events/company.site.closed.v1.schema.json")) { assertNotNull(resource); assertEquals(Files.readString(Path.of("docs/contracts/events/company.site.closed.v1.schema.json")),new String(resource.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)); }
+    }
+
+    @Test void outboxEnvelopeMapsCandidatePropertiesCorrectly() {
+        var context=new OperationContext(UUID.randomUUID(),"Actor-aB",UUID.randomUUID().toString());
+        var candidate=sampleCandidate(context);var outbox=SiteMutatedOutbox.row(candidate);
+        var event=json.valueToTree(SiteMutatedOutbox.envelope(outbox));
         assertEquals(11,event.size()); assertEquals(8,event.path("payload").size());
         assertTrue(event.has("causationId"));assertTrue(event.path("causationId").isNull());
         assertEquals(event.path("aggregateId"),event.path("payload").path("siteId"));
@@ -54,11 +62,14 @@ class SiteClosedContractTest {
         assertNotEquals(event.path("aggregateId"),event.path("eventId"));
         assertEquals(context.processId(),outbox.correlationId()); assertEquals(context.actor(),outbox.audit().createdBy());
         assertEquals(1,outbox.aggregateVersion()); assertEquals(1,outbox.schemaVersion()); assertEquals(0,outbox.version()); assertEquals(0,outbox.attempts());
-        for(var field:List.of("party","identifiers","description","logoUrl","effectivelyOperational")) {
-            ObjectNode invalid=event.deepCopy();((ObjectNode)invalid.path("payload")).put(field,"forbidden");assertFalse(schema.validate(invalid).isEmpty());
-        }
-        ObjectNode wrong=event.deepCopy();wrong.put("eventSchemaVersion",2);assertFalse(schema.validate(wrong).isEmpty());
-        try(var resource=getClass().getResourceAsStream("/META-INF/contracts/events/company.site.closed.v1.schema.json")) { assertNotNull(resource); assertEquals(Files.readString(Path.of("docs/contracts/events/company.site.closed.v1.schema.json")),new String(resource.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)); }
+    }
+
+    private SiteMutated sampleCandidate(OperationContext context) {
+        var ids=new UuidV7Generator();var now=Instant.parse("2026-10-17T14:30:00.123456Z");
+        var command=new SiteRegistration.Command(context,"Key-aB",ids.next(),"acme","ágil",com.alexastudillo.companyregistry.domain.model.FieldChange.absent());
+        var registered = SiteRegistration.candidate(command,Clock.fixed(now,ZoneOffset.UTC),ids);
+        var row = mutated(registered);
+        return SiteMutated.candidate(ids.next(),row,context);
     }
     private com.alexastudillo.companyregistry.application.persistence.RegistryData.SiteRecord mutated(
             com.alexastudillo.companyregistry.application.persistence.RegistryData.SiteRecord row) {

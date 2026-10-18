@@ -34,6 +34,25 @@ class SiteMutationBoundaryTest {
                 assertInstanceOf(ApiResponseException.class,SiteApiFailures.translate(new com.alexastudillo.companyregistry.domain.text.InvalidText(code.getCode())));
         }
     }
+    @Test void mutationCatalogPreservesTheExactStatusAndCodeForEveryKnownOutcome() {
+        for (var entry : new Object[][] {
+            {SiteMutationFailure.Kind.COMPANY_NOT_FOUND,404,"company-not-found"},
+            {SiteMutationFailure.Kind.SITE_NOT_FOUND,404,"site-not-found"},
+            {SiteMutationFailure.Kind.STALE_VERSION,412,"aggregate-version-mismatch"},
+            {SiteMutationFailure.Kind.COMPANY_ARCHIVED,409,"site-mutation-not-allowed-for-archived-company"},
+            {SiteMutationFailure.Kind.SITE_CLOSED,409,"site-closed"},
+            {SiteMutationFailure.Kind.ALREADY_IN_REQUESTED_STATE,409,"site-already-in-requested-state"},
+            {SiteMutationFailure.Kind.TRANSITION_NOT_ALLOWED,409,"site-transition-not-allowed"},
+            {SiteMutationFailure.Kind.ACTIVE_HEADQUARTERS_REQUIRED,409,"active-headquarters-required"},
+            {SiteMutationFailure.Kind.CODE_OCCUPIED,409,"site-code-already-exists"},
+            {SiteMutationFailure.Kind.HEADQUARTERS_OCCUPIED,409,"headquarters-already-exists"},
+            {SiteMutationFailure.Kind.IDEMPOTENCY_MISMATCH,409,"idempotency-key-already-used-with-different-request"},
+            {SiteMutationFailure.Kind.UNAVAILABLE,503,"dependency-unavailable"}}) {
+            var exception=assertInstanceOf(ApiResponseException.class,SiteApiFailures.translate(new SiteMutationFailure((SiteMutationFailure.Kind)entry[0])));
+            assertEquals(entry[1],exception.getResponseCode().getStatus());
+            assertEquals(entry[2],exception.getResponseCode().getCode());
+        }
+    }
     private static UpdateSiteRequest read(UpdateSiteRequestReader reader,String text) {
         return reader.readFrom(UpdateSiteRequest.class,UpdateSiteRequest.class,new java.lang.annotation.Annotation[0],
                 MediaType.APPLICATION_JSON_TYPE,new MultivaluedHashMap<>(),new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8)));

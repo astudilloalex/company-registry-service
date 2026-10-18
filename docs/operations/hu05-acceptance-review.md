@@ -1,80 +1,89 @@
 # HU05 acceptance review — add-company-site-lifecycle-management
 
-Date: 2026-10-18. This record distinguishes implementation from executed evidence.
-The change is not accepted or ready for archival until the pending checks below run.
+Date: 2026-10-18. JVM, SQL, HTTP concurrency and packaged JVM gates passed.
+Native binary/process/image verification is in progress; it is not implied by JVM
+success. No archive or production deployment is performed.
 
 ## Acceptance matrix
 
-| AC | Implemented behavior | Evidence / remaining verification |
+| AC | Behavior | Executed evidence |
 | --- | --- | --- |
-| AC01 | Closed partial PATCH; omitted type preserves current classification | SiteInformationPolicyTest, SiteMutationHttpTest; packaged/native pending |
-| AC02 | Managed identity/property/audit excluded; scoped SQL ownership | SiteMutationMetadataIntegrityTest, SiteMutationPersistenceTest, HTTP foreign Site; packaged/native pending |
-| AC03 | Strip/uppercase before Unicode limits and fingerprint | SiteInformationPolicyTest, SiteMutationFingerprintTest; packaged/native pending |
-| AC04 | Site activation under editable Company | Pure 16-transition matrix and HTTP activation; concurrent/native pending |
-| AC05 | Independent Site ACTIVE with historical false operativity | SiteMutationHttpTest and JSONB codec tests; restart/native pending |
-| AC06 | ACTIVE→INACTIVE with legal headquarters protection | SiteLifecyclePolicyTest and SiteMutationHttpTest; concurrent/native pending |
-| AC07 | Terminal closure from permitted states; historical GET/replay | Pure matrix, HTTP closure/redundancy/replay; packaged/native pending |
-| AC08 | Active legal headquarters cannot be removed | SiteLifecyclePolicyTest and HTTP close/deactivate/reclassification; Company race/native pending |
-| AC09 | One open HEADQUARTERS, excluding own Site | SQL constraints and scoped repository diagnostics; HTTP race pending |
-| AC10 | Company activation and headquarters withdrawal coordinate | Test-only Company writer races prepared; execution pending |
-| AC11 | Expected Site revision and one conditional increment | SiteMutationPersistenceTest; HTTP/child races prepared, execution pending |
-| AC12 | Tenant/Company/Site isolation and ownership precedence | Repository and SiteMutationHttpTest; full regression/native pending |
-| AC13 | Four idempotent namespaces, original intent and historical keys | Deterministic independent HMAC vectors and rotation tests; races/restart/native pending |
-| AC14 | Atomic selected outbox event and explicit uncertainty | Producer/schema tests and injected rollback/response-loss tests; expanded modes/packaged/native pending |
-| AC15 | Canonical no-op preserves Site revision/audit and optional completion | Pure/HTTP/JSONB tests; no-op race/restart/native pending |
+| AC01 | Partial closed PATCH; omission preserves HEADQUARTERS | SiteInformationPolicyTest, SiteMutationBoundaryTest, SiteMutationHttpTest; packaged replay |
+| AC02 | Managed fields excluded; qualified identity/ownership | Metadata SQL insert/update constraints, repository isolation and HTTP 404 precedence |
+| AC03 | Canonical Unicode before limits/signature | Pure information tests, independent HMAC vectors and accented packaged requests |
+| AC04 | Activation under editable Company; ARCHIVED rejects | Sixteen-transition pure matrix, HTTP commands and both-order Company races |
+| AC05 | Independent Site state and historical operativity | HTTP/JSONB tests and packaged no-op true replay after Company deactivation/archival |
+| AC06 | Deactivation rules and legal headquarters protection | Pure/HTTP tests, compatible Company activation race and packaged lifecycle |
+| AC07 | Terminal close; historical resource remains readable | Pure/HTTP commands, redundant close, packaged closure and original replay |
+| AC08 | ACTIVE legal headquarters cannot be removed | Pure matrix, HTTP close/deactivate/reclassification and both-order Company races |
+| AC09 | One non-CLOSED headquarters; own reservation excluded | SQL constraints, repository diagnostics and HTTP Site/HU04 acquisition races |
+| AC10 | Company activation and headquarters withdrawal coordinate | Both-order compatible test writers; no HU03 endpoint or remote Party eligibility claim |
+| AC11 | Common Site revision, exact increment and stale rejection | Conditional bulk update, effective/no-op races and both-order child writer races |
+| AC12 | Tenant/Company/Site scope before revision/state | Qualified repository tests, missing/foreign Site and HTTP precedence |
+| AC13 | Four namespaces, presence, durable replay and rotation | Independent HMAC vectors, same/cross-Company key races, competitor rollback and packaged K1→K2/restart |
+| AC14 | Atomic selected event and explicit uncertainty | Producer/schema tests, all outbox modes, injected failures/response loss, bounded cancellation/recovery and real packaged events |
+| AC15 | No-op preserves Site version/audit; optional completion | Pure/HTTP/JSONB tests, both-order no-op race, no event on replay and packaged historical no-op |
 
-## Executed targeted checks
+The matrix records the suites establishing each claim. Exhaustive domain matrices
+and independent SQL races execute on JVM; they are not described as exhaustive
+native race coverage. The native harness targets actual serialization, persistence,
+HTTP errors, event contracts, process restart/rotation and non-root execution.
 
-The following targeted Gradle selections returned BUILD SUCCESSFUL before the full
-regression gate. They are not a replacement for the packaged/native gates:
+## Executed gates and reports
 
-- Site information and unchanged HU04 registration policy tests.
-- Site lifecycle policy and ArchitectureTest.
-- Neutral mutation command/result tests and ArchitectureTest.
-- PostgreSQL 18 clean V5 startup, repeated validation/runtime privileges, metadata
-  insert/update constraints for all four namespaces, scoped Site references.
-- V4 SQL upgrade with earlier acceptances/events and incompatible HU05 history,
-  catalog/documentation checks and existing Site integrity suite.
-- Qualified Site locking/update, exact revision, parent/creation audit preservation,
-  code release at commit/rollback, failure classification and HU04 regression.
-- Independent HU05 HMAC vectors and historical HU01/HU02/HU04 fingerprint regression.
-- HU05 codec strict shape/revision/ownership/audit validation and JSONB round-trip,
-  including all four operations and no-op; earlier codecs remain unchanged.
-- SiteMutationHttpTest plus ArchitectureTest: PATCH, no-op, all four routes, replay
-  after closure/archival, legal headquarters protection, header/body diagnostics.
-- Updated/closed producer and Draft 2020-12 schema tests, OpenApiHttpTest, HU04 HTTP.
-- MutateSiteTest injected failures after Site/completion/event/before commit,
-  durable recovery after response loss and explicit unkeyed uncertainty.
+| Gate | Command selection | Result |
+| --- | --- | --- |
+| Full JVM regression/build/isolation | `./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=final-jvm test build verifyProductionIsolation` | BUILD SUCCESSFUL, 5m48s; 94 suites, 313 tests, 0 failures/errors |
+| Expanded HU05 cases | `test --tests '*SiteMutationDeadlineTest' --tests '*SiteMutationConcurrencyHttpTest' --tests '*SiteMutationBoundaryTest' --tests '*SiteMutationBudgetTest'` with `hu05EvidenceRun=packaged-jvm` | 4 suites, 20 selected tests, 0 failures/errors; includes eight concurrency cases and exact catalog mapping |
+| Packaged JVM suite | Same invocation followed by `quarkusIntTest` | BUILD SUCCESSFUL, total invocation 3m44s; 6 suites, 11 process tests, 0 failures/errors |
 
-One concurrency/budget test run could not finalize Gradle's binary report because
-`build/test-results/test/binary/in-progress-results-generic.bin` disappeared.
-That run is not counted as passing evidence. Subsequent verification uses
-`hu05-test-results.gradle` and isolated `build/hu05-evidence/<run>/` reports.
+Database-backed commands use
+`DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true`.
+The selected HU05 tests overlap the full regression; their counts are not summed
+as unique tests. Reports are under `build/hu05-evidence/final-jvm/results/` and
+`build/hu05-evidence/packaged-jvm/results/`. An earlier isolated selection passed
+21 tests before the final competitor-rollback/deadline additions.
 
-V1–V4 migration sources were checked unchanged with git diff. V5 adds one CHECK and
-no application table. Runtime remains DML-only with a separate migration role.
+A prior non-isolated run could not finalize Gradle's binary report because
+`build/test-results/test/binary/in-progress-results-generic.bin` disappeared. It
+is not counted as passing evidence. The isolated rerun and later gates passed.
+
+## Persistence, compatibility and artifacts
+
+V1–V4 migration sources were checked unchanged with git diff. PostgreSQL 18 clean
+startup, repeated Flyway validation/history, six application tables, runtime DML
+without DDL, metadata insertion/update rejection, and V4 SQL upgrade all passed.
+Incompatible HU05 history stops with controlled 23514 diagnostics; no migration
+rewrites snapshots, fabricates provenance or deletes acceptances.
+
+HU01/HU02/HU04 fingerprints and result formats remain unchanged and passed their
+regressions. HU05 JSONB round-trips cover all four operations and no-op, strict
+shape/types/ownership/revision, original Company status and boolean, UTC microseconds
+and completion audit independent of unchanged Site audit.
+
+The productive JVM artifact includes OpenAPI and updated/closed schemas/examples,
+with no verification API classes. The packaged process runs from a temporary working
+directory with providers unavailable, retains PostgreSQL across restart and K1→K2,
+and replays all operations/no-op across outbox modes. Original true operativity is
+retained after Company deactivation/archival. Actual updated/closed rows satisfy
+Draft 2020-12 schemas and cross-field identity/time/revision/actor invariants.
 
 ## Compatible writer fixtures and limits
 
 SiteMutationConcurrencyHttpTest owns test-only Company activation/archival and
-address/contact writers. They lock qualified Company → Site and share the Site
-expected revision for child changes. Barrier-only connections can deliberately hold
-Site to observe another transaction's lock wait; they perform no business mutation.
-These fixtures establish only the local protocol, not Party eligibility or actual
-HU03/HU06/HU07 endpoint integration. No fixture is added to production sources.
+address/contact writers. They lock qualified Company → Site; child writers compare
+the common Site revision, insert the child and increment Site once atomically.
+Barrier-only connections may hold Site to observe a competing lock wait; they perform
+no business mutation. The tests establish the local protocol, not actual HU03/HU06/
+HU07 endpoints, remote Party eligibility or distributed provider atomicity. None of
+these writers enters production sources. The same limits are in persistence-contract.md.
 
-The packaged Site suite is extended to accept/replay every HU05 operation and no-op
-across retained PostgreSQL, independent processes, historical K1→K2 and all outbox
-modes, with providers unavailable. It validates real updated/closed events. The OCI
-harness extends HU04 verification with HU05 mutations/replay and UID 1001 checks.
-Preparation of these harnesses does not establish execution.
+## Native gate pending
 
-## Remaining gates
-
-- Isolated concurrency/budget/mode/boundary verification and both-order Company and
-  child writer races; full JVM regression.
-- `./gradlew build`, `quarkusIntTest` and `verifyProductionIsolation` against the
-  final JVM artifact, including all prior workflow regressions.
-- Native binary build/process/restart suite and non-root Podman image execution,
-  recording actual commands, results and artifact hashes in native-verification.md.
-- Final OpenSpec progress/validation and completion review. No archive is performed.
+The binary build uses the documented Mandrel JDK 25/Podman builder with 5 GB and two
+threads. Output is `build/hu05-evidence/native-build.log`. Native process and OCI
+results, commands and artifact identities must be recorded after execution in
+native-verification.md. The OCI harness `verify-hu05-native-image.py` prepares an
+actual V4 native startup followed by V5 upgrade, retained historical acceptance and
+checksums, four HU05 operations/no-op, true historical boolean, K1→K2 and all modes
+under UID 1001. Harness preparation alone is not execution evidence.

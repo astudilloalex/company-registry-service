@@ -330,3 +330,22 @@ native process suites executed seven checks with no failures/errors; four
 verification-fixture checks remain intentionally excluded from that artifact.
 The accepted runner/image hashes and exact per-mode times are recorded in
 [hu04-acceptance-review.md](hu04-acceptance-review.md).
+
+## HU05 verification in progress (2026-10-18)
+
+The JVM gate passed 313 tests, productive build and verifyProductionIsolation.
+The additional HU05 selection passed 20 tests, and all six packaged JVM suites
+passed eleven process tests, including HU05 restart/replay/rotation/modes and actual
+updated/closed schemas. Isolated results are under `build/hu05-evidence/`.
+
+HU05 native build command (execution started; no native success claimed yet):
+
+```shell
+DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+```
+
+Build output: `build/hu05-evidence/native-build.log`. The HU05 image harness is
+`verify-hu05-native-image.py`; it establishes V4 through a native Flyway-targeted
+startup, upgrades to V5 while retaining historical HU04 acceptance/checksums, and
+prepares HU05 mutation/no-op/true-boolean replay through all modes and K1→K2 under
+UID 1001. Native binary/process/image results must be added only after execution.
