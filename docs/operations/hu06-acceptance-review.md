@@ -6,21 +6,28 @@ including the agreed OpenSpec deltas and design. Review date: 2026-10-18.
 
 ## Execution record
 
-Verification is in progress. Pending rows below are not execution evidence.
+All required implementation and verification stages passed. The four
+fixture-only process cases intentionally skipped by each productive artifact
+were executed successfully in its separate verification variant.
 
 | Stage | Result | Evidence |
 | --- | --- | --- |
 | Focused JVM/PostgreSQL | 107 tests, zero failures/skips before final codec compatibility regression | `focused-profiles` run |
 | Full clean JVM build / production isolation | 483 tests, zero failures/skips; build and isolation passed | `build/hu06-evidence/jvm/` |
-| Packaged JVM process | 11 productive cases passed; four fixture-only cases reserved for the separate verification artifact | `build/hu06-evidence/packaged-jvm/` |
+| Packaged JVM process | 11 productive cases passed; four fixture-only cases passed separately in the verification artifact | `build/hu06-evidence/packaged-jvm/` |
+| Final codec / boundary / HTTP / repository regression | 24 tests passed, zero failures/skips | `build/hu06-evidence/packaged-jvm/results/test/` |
 | Final HU06 JVM process | Two cases passed, including current GET and collection schema | `build/hu06-evidence/packaged-hu06-final/` |
-| Verification JVM artifact | Pending | `build/verification/hu06-evidence/verification-jvm/` |
-| Mandrel native build / native process | Build passed; 11 productive cases passed, four fixture-only cases reserved for the verification artifact | `build/hu06-evidence/native-process/` |
-| Verification native artifact | Pending | `build/verification/hu06-evidence/verification-native/` |
-| Strict OpenSpec validation | Valid, zero issues; final tracking reconciliation pending | `openspec validate ... --strict --json` |
+| Verification JVM artifact | Seven concurrency cases and four packaged fixture cases passed, zero failures/skips | `build/verification/hu06-evidence/verification-jvm/` |
+| Mandrel native build / native process | Build passed; 11 productive cases passed, four fixture-only cases passed separately in the verification artifact | `build/hu06-evidence/native-process/` |
+| Verification native artifact | Build passed; four packaged fixture cases passed, zero failures/skips | `build/verification/hu06-evidence/verification-native/` |
+| Strict OpenSpec validation | Valid, zero issues | `openspec validate ... --strict --json` |
 
 Reports are preserved per stage with `docs/operations/hu06-test-results.gradle`.
-The JVM test heap is 1 GiB: the expanded full suite exhausted Gradle's default
+The verification JVM profile was rerun from the isolated source copy
+`/tmp/hu06-isolated-01a150f1` after another Gradle execution in the shared checkout
+removed compiled classes during discovery. Its successful reports were copied
+back to the path above; the interrupted shared-directory run is not passing
+evidence. The JVM test heap is 1 GiB: the expanded full suite exhausted Gradle's default
 test heap after 313 cases without an assertion failure. Early harness runs also
 encountered a closed Podman API connection and application-resource reuse across
 scoped test classes. A dedicated non-idling Podman service and the established
@@ -37,8 +44,12 @@ export QUARKUS_HTTP_TEST_PORT=0
 
 ./gradlew --offline -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=jvm clean build verifyProductionIsolation
 ./gradlew --offline -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=packaged-jvm quarkusIntTest
+./gradlew --offline -Pverification=true -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=verification-jvm test --tests '*AddressConcurrencyHttpTest' quarkusIntTest --tests '*PackagedVerificationIT'
 ./gradlew --offline quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
 ./gradlew --offline -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=native-process quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+# Execute the verification-variant commands in the isolated source copy.
+./gradlew --offline -Pverification=true quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+./gradlew --offline -Pverification=true -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=verification-native quarkusIntTest --tests '*PackagedVerificationIT' -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
 openspec validate add-company-site-address-management --strict --json
 ```
 
@@ -115,7 +126,15 @@ atomicity against later provider changes. Pagination observes current pages and
 does not provide a cross-page snapshot. Outbox remains stored PENDING; HU08
 publication and broker delivery are outside HU06.
 
-JVM tests do not establish native execution. `PackagedAddressIT` is prepared for
-the actual productive JVM/native process with independent PostgreSQL and HTTP
-fixtures outside the artifact. Native results, artifact identity and concrete
-execution coverage must be recorded before completing this review.
+Actual productive JVM and native processes passed `PackagedAddressIT`, with
+independent PostgreSQL and HTTP fixtures outside the artifact. Native commands,
+compiler identity, both ELF hashes/sizes and the exact executed scope are recorded
+in [native verification](native-verification.md#hu06-productive-native-verification-2026-10-18).
+The productive native suite passed eleven cases and the separate verification
+native suite passed the remaining four, with zero failures. Eager HU06
+composition is retained for invalid-budget startup rejection.
+
+The source copy used for verification was compared against current production,
+verification, packaged-test and contract sources before final tracking. No
+behavioral drift remained. OpenSpec strict validation passed with zero issues.
+The change is ready for review before archiving.

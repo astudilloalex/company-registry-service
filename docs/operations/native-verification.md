@@ -525,3 +525,34 @@ Invalid address budget failed startup. Production verification routes returned
 Exhaustive concurrency, rollback injection and dependency-failure matrices are
 JVM/PostgreSQL evidence; the native process suite establishes the concrete
 coverage described here. No OCI rebuild or HU08 broker publication is claimed.
+
+
+### HU06 separate verification variant
+
+The separate verification executable was built in the isolated source copy
+`/tmp/hu06-isolated-01a150f1`, preserving the shared checkout and productive
+artifact. Its build passed in 31m5s, with native generation taking 30m29s.
+The x86-64 Linux ELF is 111582264 bytes; SHA-256:
+`689b9d0c380f06c38922c7f2b412f50d3cc39d5781e0d06fd74a42c2563b5870`.
+Both executables are preserved separately under
+`build/hu06-evidence/artifacts/{productive-runner,verification-runner}`.
+
+```shell
+./gradlew --offline -Pverification=true quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+./gradlew --offline -Pverification=true -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=verification-native quarkusIntTest --tests '*PackagedVerificationIT' -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+```
+
+All four `PackagedVerificationIT` cases passed against this actual native
+executable in 37s, with zero failures/errors/skips: six persistence mappings
+commit/rollback, strict HTTP/context/error behavior, concurrent context isolation
+and real reference-client contracts. Combined with the eleven productive cases,
+all fifteen packaged cases were executed in their intended native variants.
+The isolated reports and logs were copied back to
+`build/verification/hu06-evidence/verification-native/`,
+`verification-native-build.log` and `verification-native-process.log`.
+
+The shared checkout was edited and built concurrently during this verification.
+An isolated copy avoided removal of compiled classes; current production,
+verification, integration-test and contract sources were checked against that
+copy before final tracking. Eager HU06 composition is retained so invalid
+budgets fail at startup, as asserted by `PackagedAddressIT`.
