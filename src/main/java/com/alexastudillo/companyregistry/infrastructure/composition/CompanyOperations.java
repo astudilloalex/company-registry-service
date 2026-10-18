@@ -8,6 +8,19 @@ import java.time.Clock;
 
 @ApplicationScoped
 public class CompanyOperations {
+    @Produces public TransitionCompany.Storage lifecycleStorage(AtomicOperation atomic, CompanyRepository companies,
+            SiteRepository sites, LifecycleEvents events) {
+        return new TransitionCompany.Storage(atomic, companies, sites, events);
+    }
+    @Produces public TransitionCompany.Idempotency lifecycleIdempotency(CompletionRepository completions,
+            LifecycleFingerprints fingerprints, LifecycleResults results) {
+        return new TransitionCompany.Idempotency(completions, fingerprints, results);
+    }
+    @Produces public TransitionCompany lifecycle(TransitionCompany.Storage storage, TransitionCompany.Idempotency idempotency,
+            com.alexastudillo.companyregistry.application.reference.PartyReferences parties, Identifiers ids, Clock clock,
+            @org.eclipse.microprofile.config.inject.ConfigProperty(name="company-registry.lifecycle.wait-budget",defaultValue="10s") java.time.Duration budget) {
+        return new TransitionCompany(storage, idempotency, parties, ids, clock, budget);
+    }
     @Produces public ReadCompanies reads(AtomicOperation atomic,CompanyRepository companies,PartyReads parties,CompanyCursors cursors) {return new ReadCompanies(atomic,companies,parties,cursors);}
     @Produces public RegisterCompany.Storage storage(AtomicOperation atomic, CompanyRepository companies, CreationEvents events) {
         return new RegisterCompany.Storage(atomic, companies, events);

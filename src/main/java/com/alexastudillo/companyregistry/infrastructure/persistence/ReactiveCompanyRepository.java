@@ -9,6 +9,32 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class ReactiveCompanyRepository implements CompanyRepository, PanacheRepositoryBase<CompanyEntity, UUID> {
+    private static final String PARAM_TENANT = "tenant";
+
+    @Override
+    public Uni<CompanyRecord> transition(CompanyRecord row, long expectedVersion,
+            com.alexastudillo.companyregistry.domain.model.CompanyStatus source) {
+        if (expectedVersion < 0 || expectedVersion == Long.MAX_VALUE
+                || row.company().version().value() != expectedVersion + 1
+                || source == null || !source.permitsTransitionTo(row.company().status())) {
+            throw new IllegalArgumentException("transition-version-or-state-invalid");
+        }
+        // Bulk HQL leaves managed state untouched and does not apply an implicit @Version increment.
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put(PARAM_TENANT, row.company().tenantId());
+        parameters.put("id", row.company().id());
+        parameters.put("expected", expectedVersion);
+        parameters.put("source", source);
+        parameters.put("status", row.company().status());
+        parameters.put("at", row.audit().updatedAt());
+        parameters.put("actor", row.audit().updatedBy());
+        return update("status=:status, updatedAt=:at, updatedBy=:actor, version=version+1 "
+                + "where tenantId=:tenant and id=:id and version=:expected and status=:source", parameters)
+                .chain(count -> count == 1 ? Uni.createFrom().item(row)
+                        : Uni.createFrom().failure(new com.alexastudillo.companyregistry.application.persistence.PersistenceFailure(
+                                com.alexastudillo.companyregistry.application.persistence.PersistenceFailure.Kind.STALE_VERSION, null)));
+    }
+
     @Override
     public Uni<CompanyRecord> findForUpdate(UUID tenantId, UUID companyId) {
         return find("tenantId = ?1 and id = ?2", tenantId, companyId)
@@ -22,7 +48,7 @@ public class ReactiveCompanyRepository implements CompanyRepository, PanacheRepo
             throw new IllegalArgumentException("update-version-invalid");
         // Bulk HQL changes no managed entity; @Version cannot add a second increment.
         var parameters = new java.util.HashMap<String, Object>();
-        parameters.put("tenant", row.company().tenantId()); parameters.put("id", row.company().id());
+        parameters.put(PARAM_TENANT, row.company().tenantId()); parameters.put("id", row.company().id());
         parameters.put("expected", expectedVersion); parameters.put("code", row.code());
         parameters.put("name", row.operatingName()); parameters.put("description", row.description());
         parameters.put("logo", row.logoUrl()); parameters.put("at", row.audit().updatedAt());
@@ -42,7 +68,7 @@ public class ReactiveCompanyRepository implements CompanyRepository, PanacheRepo
             throw new IllegalArgumentException("limit-invalid");
         var query = new StringBuilder("tenantId = :tenant");
         var parameters = new java.util.HashMap<String, Object>();
-        parameters.put("tenant", tenantId);
+        parameters.put(PARAM_TENANT, tenantId);
         if (filters.code() != null) {
             query.append(" and code = :code");
             parameters.put("code", filters.code());

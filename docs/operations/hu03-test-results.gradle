@@ -1,0 +1,9 @@
+// Keep each verification stage's reports separate, without changing assertions or selection.
+allprojects { project ->
+    def run = project.providers.gradleProperty("hu03EvidenceRun").orElse("jvm").get()
+    project.tasks.withType(org.gradle.api.tasks.testing.Test).configureEach { task ->
+        task.binaryResultsDirectory.set(project.layout.buildDirectory.dir("hu03-evidence/${run}/results/${task.name}/binary"))
+        task.reports.junitXml.outputLocation.set(project.layout.buildDirectory.dir("hu03-evidence/${run}/results/${task.name}/xml"))
+        task.reports.html.outputLocation.set(project.layout.buildDirectory.dir("hu03-evidence/${run}/results/${task.name}/html"))
+    }
+}

@@ -26,7 +26,7 @@ class DatabaseStartupTest {
     @Test
     void cleanStartupMigratesAndHealthNeedsNoBusinessHeaders() throws Exception {
         given().when().get("/q/health/ready").then().statusCode(200);
-        assertEquals("5", flyway.info().current().getVersion().getVersion());
+        assertEquals("6", flyway.info().current().getVersion().getVersion());
         flyway.validate();
         try (var connection = flyway.getConfiguration().getDataSource().getConnection();
              var statement = connection.createStatement();
@@ -68,7 +68,7 @@ class DatabaseStartupTest {
     @Test
     void repeatedStartupMigrationAndValidationLeaveHistoryUnchanged() throws Exception {
         var before = history();
-        assertEquals(5, before.size());
+        assertEquals(6, before.size());
         for (int restart = 0; restart < 2; restart++) {
             // A fresh engine repeats Flyway's startup lifecycle against the same persisted database.
             var restarted = Flyway.configure()

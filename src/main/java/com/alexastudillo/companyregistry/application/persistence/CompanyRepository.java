@@ -11,6 +11,9 @@ public interface CompanyRepository {
     Uni<CompanyRecord> findForUpdate(UUID tenantId, UUID companyId);
     /** One explicit operational write; fails neutrally when the expected version no longer matches. */
     Uni<CompanyRecord> update(CompanyRecord company, long expectedVersion);
+    /** Lifecycle-only write, qualified by both expected revision and observed source status. */
+    Uni<CompanyRecord> transition(CompanyRecord company, long expectedVersion,
+            com.alexastudillo.companyregistry.domain.model.CompanyStatus source);
     Uni<Boolean> occupied(UUID tenantId, String code, UUID partyId);
     /** At most limit+1 rows, ordered by createdAt/id descending. */
     Uni<java.util.List<CompanyRecord>> page(UUID tenantId,com.alexastudillo.companyregistry.application.company.CompanySelection.Filters filters,

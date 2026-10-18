@@ -127,6 +127,7 @@ tasks.register("verifyProductionIsolation") {
         var siteContractFound = false
         var siteExampleFound = false
         val siteMutationContracts = mutableSetOf<String>()
+        val lifecycleContracts = mutableSetOf<String>()
         jars.forEach { jar ->
             JarFile(jar).use { archive ->
                 archive.entries().asSequence().forEach { entry ->
@@ -134,6 +135,12 @@ tasks.register("verifyProductionIsolation") {
                         "Verification fixture included in production: ${entry.name}"
                     }
                     if (entry.name == "META-INF/openapi.yaml") contractFound = true
+                    if (entry.name in setOf(
+                            "META-INF/contracts/events/company.activated.v1.schema.json",
+                            "META-INF/contracts/events/company.activated.v1.example.json",
+                            "META-INF/contracts/events/company.deactivated.v1.schema.json",
+                            "META-INF/contracts/events/company.deactivated.v1.example.json",
+                            "META-INF/contracts/events/company.updated.v1.archived.example.json")) lifecycleContracts.add(entry.name)
                     if (entry.name == "META-INF/contracts/events/company.created.v1.schema.json") eventContractFound = true
                     if (entry.name == "META-INF/contracts/events/company.updated.v1.schema.json") updateContractFound = true
                     if (entry.name == "META-INF/contracts/events/company.updated.v1.example.json") updateExampleFound = true
@@ -152,6 +159,7 @@ tasks.register("verifyProductionIsolation") {
         check(updateContractFound && updateExampleFound) { "Packaged update event contract/example is missing" }
         check(siteContractFound && siteExampleFound) { "Packaged Site event contract/example is missing" }
         check(siteMutationContracts.size == 4) { "Packaged Site mutation event contracts/examples are missing" }
+        check(lifecycleContracts.size == 5) { "Packaged Company lifecycle event contracts/examples are missing" }
     }
 }
 
