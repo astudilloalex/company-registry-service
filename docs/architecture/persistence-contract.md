@@ -101,3 +101,47 @@ failed session rollback/closure precedes recovery in a new session. No parallel
 operations share a session, no manual background subscription performs writes and
 no unkeyed uncertain command is automatically reexecuted. `occupied` is never
 used by HU02: own Party cannot prove either code conflict or accepted outcome.
+# HU04 schema evolution
+
+V4 adds `ck_company_idempotency_site_creation_metadata` and
+`ix_company_sites_tenant_company_created` without altering V1–V3 or adding tables.
+The acceptance for `company.site.create.v1` requires an owned Site, null expected
+version, status 201 and fingerprint provenance. Existing hash, JSON-object,
+snapshot-version and composite tenant/Company/Site foreign keys remain authoritative.
+Before adding the CHECK, migration diagnoses incompatible historical HU04 rows and
+stops; operators must retain snapshots and establish provenance from evidence,
+never manufacture keys or reconstruct an original response from current state.
+
+The Site index orders `(tenant_id, company_id, created_at DESC, id DESC)` for
+forward pagination. Runtime DML and migrator DDL roles remain separate. CLOSED
+preserves the code's uniqueness while releasing the open-headquarters slot.
+
+New registration locks tenant-qualified Company first for all Site types, then
+rechecks the accepted completion before current admission. Company status/version
+and audit are never updated. Future lifecycle writers must follow Company → Site.
+The short initial completion lookup precedes this transaction. A losing write
+rolls back and closes before a primary-database lookup in a fresh session:
+equivalent completion wins over current state/uniqueness; another intent gets
+the idempotency conflict; known Site-code/HQ uniqueness retains its specific cause.
+Unresolved commit/timeout returns 503 without blind re-execution. Cancellation
+stays on the same subscription, with no independently subscribed write.
+
+`company-registry.site-registration.wait-budget` reads
+`COMPANY_SITE_REGISTRATION_WAIT_BUDGET` (default 10s, positive finite). One shared
+DatabaseBudget covers all local phases, including recovery and transaction
+finalization; checkpoints set remaining statement_timeout/lock_timeout. Never
+restart the budget between attempts. Deadlock and serialization aborts are
+transient uncertainty, not an invented business conflict.
+
+For rollback after HU04 acceptance, retain V4, Sites, completions, events and
+historical keys/codecs. Restore a replay-capable application or suspend Site
+routes; never delete accepted keys or rewrite snapshots to downgrade.
+
+Site detail/page first resolve the parent in tenant, then read Site and Company
+state together with a local join. The earlier existence check does not supply
+the operativity state. CLOSED/ARCHIVED remain readable. Exact canonical code,
+siteType and status filters combine with AND. Queries fetch limit+1, order by
+created_at/id descending and preserve both values as the forward boundary.
+Cursor scope includes tenant, Company, effective filters and order with the
+company.site.cursor.v1 HMAC domain; actor/process/limit are excluded. No global
+count, Party, address/contact load or write lock belongs to this read path.

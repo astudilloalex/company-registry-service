@@ -284,3 +284,25 @@ preserved separately under `/tmp/company-hu01-evidence/native/`. The image tag i
 `python3 docs/operations/verify-hu01-native-image.py` from the repository root to
 repeat the isolated image checks after building that tag. It creates its own
 PostgreSQL/provider/keys and removes its test containers afterward.
+## HU04 productive native verification
+
+The HU04 executable uses the same documented Java 25 Mandrel builder, 5 GiB
+compiler heap and two-thread configuration. From the repository root:
+
+```sh
+DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+QUARKUS_HTTP_TEST_PORT=0 DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true ./gradlew quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+podman build -f src/main/docker/Dockerfile.native-micro -t company-registry-service:hu04-native .
+python3 docs/operations/verify-hu04-native-image.py
+```
+
+`PackagedSiteIT` exercises the actual productive JVM/native process with an
+external PostgreSQL 18 database, then restarts it against that preserved database
+with K2 and all outbox modes. It checks Site JSONB replay after mutation, closure
+and archival, local detail/page, cursor/HMAC, booleans/version/date values, public
+errors and produced event validation against Draft 2020-12. It also checks absent
+production verification routes and zero provider requests. The OCI harness uses
+UID 1001, refused provider/broker URLs and owns only its disposable containers.
+
+See [HU04 acceptance](hu04-acceptance-review.md) for executed results, artifact
+identities and any pending checks. These commands alone are not execution evidence.

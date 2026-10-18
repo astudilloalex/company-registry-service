@@ -1,8 +1,11 @@
 # Planned business operations and shared conventions
 
-The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01/HU02 operations:
+The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01/HU02/HU04 operations:
 `POST /v1/companies`, `GET /v1/companies/{companyId}`, `GET /v1/companies` and
-`PATCH /v1/companies/{companyId}`. See [HU02 contract](company-information-management.md)
+`PATCH /v1/companies/{companyId}`, `POST /v1/companies/{companyId}/sites`,
+`GET /v1/companies/{companyId}/sites/{siteId}` and `GET /v1/companies/{companyId}/sites`.
+See [HU04 contract](company-site-registration-and-retrieval.md) for local Site reads,
+replay, canonical filters and specific errors. See [HU02 contract](company-information-management.md)
 for runnable modification/cleaning and replay rules.
 The [HU01 acceptance record](../operations/hu01-acceptance-review.md) records
 executed JVM, native and image verification; contract publication alone is not evidence. All require exactly one
@@ -14,7 +17,7 @@ The inventory links other planned behavior to the actual issue titles:
 | [HU01 / #3](https://github.com/astudilloalex/company-registry-service/issues/3) | Company registration and retrieval/listing | Registration requires Idempotency-Key; initial Company version 0. Reads require no mutation headers. |
 | [HU02 / #4](https://github.com/astudilloalex/company-registry-service/issues/4) | Company information management | PATCH operational fields; mandatory decimal If-Match, optional durable key, local 200 without Party. |
 | [HU03 / #5](https://github.com/astudilloalex/company-registry-service/issues/5) | Company lifecycle management | Expected Company version; activation preconditions under Company→Site lock order. |
-| [HU04 / #6](https://github.com/astudilloalex/company-registry-service/issues/6) | Site registration and retrieval/listing | Site starts at version 0; operation-specific idempotency applicability. |
+| [HU04 / #6](https://github.com/astudilloalex/company-registry-service/issues/6) | Site registration and retrieval/listing | Mandatory Idempotency-Key, no If-Match; Site DRAFT/version 0; historical local reads. |
 | [HU05 / #7](https://github.com/astudilloalex/company-registry-service/issues/7) | Site lifecycle management | Expected Site version; CLOSED is terminal. |
 | [HU06 / #8](https://github.com/astudilloalex/company-registry-service/issues/8) | Site address management | Expected Site version; geographic validation requires confirmed provider contracts. |
 | [HU07 / #9](https://github.com/astudilloalex/company-registry-service/issues/9) | Site contact management | Expected Site version; contact canonicalization precedes validation/fingerprinting. |
