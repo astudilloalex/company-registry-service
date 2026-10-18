@@ -1,8 +1,8 @@
 # HU05 acceptance review — add-company-site-lifecycle-management
 
-Date: 2026-10-18. JVM, SQL, HTTP concurrency and packaged JVM gates passed.
-Native binary/process/image verification is in progress; it is not implied by JVM
-success. No archive or production deployment is performed.
+Date: 2026-10-18. JVM, SQL, HTTP concurrency, packaged JVM, native binary/process
+and non-root OCI gates passed. No required HU05 verification remains pending.
+No archive or production deployment is performed.
 
 ## Acceptance matrix
 
@@ -35,7 +35,7 @@ HTTP errors, event contracts, process restart/rotation and non-root execution.
 | --- | --- | --- |
 | Full JVM regression/build/isolation | `./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=final-jvm test build verifyProductionIsolation` | BUILD SUCCESSFUL, 5m48s; 94 suites, 313 tests, 0 failures/errors |
 | Expanded HU05 cases | `test --tests '*SiteMutationDeadlineTest' --tests '*SiteMutationConcurrencyHttpTest' --tests '*SiteMutationBoundaryTest' --tests '*SiteMutationBudgetTest'` with `hu05EvidenceRun=packaged-jvm` | 4 suites, 20 selected tests, 0 failures/errors; includes eight concurrency cases and exact catalog mapping |
-| Packaged JVM suite | Same invocation followed by `quarkusIntTest` | BUILD SUCCESSFUL, total invocation 3m44s; 6 suites, 11 process tests, 0 failures/errors |
+| Packaged JVM suite | Same invocation followed by `quarkusIntTest` | BUILD SUCCESSFUL, total invocation 3m44s; 6 suites discovered; 7 productive tests executed, 4 fixture-only tests skipped, 0 failures/errors |
 
 Database-backed commands use
 `DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true`.
@@ -78,12 +78,20 @@ no business mutation. The tests establish the local protocol, not actual HU03/HU
 HU07 endpoints, remote Party eligibility or distributed provider atomicity. None of
 these writers enters production sources. The same limits are in persistence-contract.md.
 
-## Native gate pending
+## Native gate executed
 
-The binary build uses the documented Mandrel JDK 25/Podman builder with 5 GB and two
-threads. Output is `build/hu05-evidence/native-build.log`. Native process and OCI
-results, commands and artifact identities must be recorded after execution in
-native-verification.md. The OCI harness `verify-hu05-native-image.py` prepares an
-actual V4 native startup followed by V5 upgrade, retained historical acceptance and
-checksums, four HU05 operations/no-op, true historical boolean, K1→K2 and all modes
-under UID 1001. Harness preparation alone is not execution evidence.
+The native build passed in 9m38s using Mandrel 25.0.4.1-Final, 5 GB and two
+threads. The actual ELF process suite passed in 57s: seven productive tests executed,
+four verification-only fixture tests intentionally skipped, zero failures/errors.
+The OCI harness passed under UID 1001 in all three modes, with actual V4→V5 native
+migration, preserved checksums/HU04 acceptance, HU05 operations/no-op, true historical
+boolean, K1→K2 and restart/archival replay. Real native-process mutation events pass
+their published schemas; OCI checks their minimal payloads, states and revisions.
+
+Runner SHA-256: `0f7f14d328daac0e090e3635a85af23e6f9389380a67525e6111a113fcd90f91`.
+Image ID: `80701551de9ab86ddaea47437befeb74b65931bb945b4ba3e9a4a63484a9f754`.
+Commands, fixture preparation details, initial unsupported-target attempt and exact
+results are in [native verification](native-verification.md). The corrected OCI
+report is `build/hu05-evidence/oci/report.json`. Only owned disposable containers
+were removed. JVM-only exhaustive races and the excluded fixture suite are not
+presented as additional native production tests.

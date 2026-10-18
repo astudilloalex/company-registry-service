@@ -331,21 +331,60 @@ verification-fixture checks remain intentionally excluded from that artifact.
 The accepted runner/image hashes and exact per-mode times are recorded in
 [hu04-acceptance-review.md](hu04-acceptance-review.md).
 
-## HU05 verification in progress (2026-10-18)
+## HU05 verification completed (2026-10-18)
 
-The JVM gate passed 313 tests, productive build and verifyProductionIsolation.
-The additional HU05 selection passed 20 tests, and all six packaged JVM suites
-passed eleven process tests, including HU05 restart/replay/rotation/modes and actual
-updated/closed schemas. Isolated results are under `build/hu05-evidence/`.
+The full JVM gate passed 313 tests (94 suites, zero skipped/failures/errors),
+productive build and verifyProductionIsolation. The final HU05 selection passed
+20 tests, including eight concurrency cases. Both packaged JVM and native runs
+reported eleven discovered tests: **seven executed successfully and four
+verification-only fixtures intentionally skipped** in the productive artifact.
+The productive Site suite exercises all HU05 operations/no-op, true/false historical
+operativity, actual updated/closed schemas, retained PostgreSQL, restart, K1→K2 and
+all outbox modes. It runs outside the repository working directory with providers
+unavailable; no native fallback to a JVM artifact is used.
 
-HU05 native build command (execution started; no native success claimed yet):
+Executed commands (database-backed Gradle runs use the Podman/Testcontainers
+exports shown earlier):
 
 ```shell
-DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=final-jvm test build verifyProductionIsolation
+./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=packaged-jvm test --tests '*SiteMutationDeadlineTest' --tests '*SiteMutationConcurrencyHttpTest' --tests '*SiteMutationBoundaryTest' --tests '*SiteMutationBudgetTest' quarkusIntTest
+./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+QUARKUS_HTTP_TEST_PORT=0 ./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=native-process quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+podman build -f src/main/docker/Dockerfile.native-micro -t company-registry-service:hu05-native .
+EVIDENCE_DIR=build/hu05-evidence/oci python3 -u docs/operations/verify-hu05-native-image.py
 ```
 
-Build output: `build/hu05-evidence/native-build.log`. The HU05 image harness is
-`verify-hu05-native-image.py`; it establishes V4 through a native Flyway-targeted
-startup, upgrades to V5 while retaining historical HU04 acceptance/checksums, and
-prepares HU05 mutation/no-op/true-boolean replay through all modes and K1→K2 under
-UID 1001. Native binary/process/image results must be added only after execution.
+- Mandrel 25.0.4.1-Final, Java 25.0.4.1+1-LTS; ELF x86-64 executable.
+- Native Gradle build: BUILD SUCCESSFUL in 9m38s; image generation 8m49s,
+  peak RSS 4.68 GB, configured 5 GB/two threads.
+- Native process suite: BUILD SUCCESSFUL in 57s, seven productive tests executed,
+  four fixture-only tests skipped, zero failures/errors.
+- Runner SHA-256: `0f7f14d328daac0e090e3635a85af23e6f9389380a67525e6111a113fcd90f91`.
+- Image ID: `80701551de9ab86ddaea47437befeb74b65931bb945b4ba3e9a4a63484a9f754`.
+- Image configured/runtime UID: `1001`; all disabled/stored-only/published runs passed.
+
+OCI prepares V4 with the existing JVM artifact's Flyway/JDBC libraries and original
+migration sources, then starts the native image with startup migration disabled to
+create an authentic HU04 acceptance. A subsequent normal native startup applies V5
+from V4, preserving V1–V4 checksums and that acceptance. This external preparation is
+necessary because Quarkus 3.40.1 does not expose a Flyway target runtime property.
+An initial unsupported-target harness attempt failed its V4 assertion and is not
+counted as passing evidence; the corrected harness completed successfully.
+
+The OCI HU05 flows execute PATCH, no-op, activate/deactivate/close, historical true
+operativity, closure/archival and K1→K2 replay across mode changes. Stored-only and
+published preserve four mutation events (updated revisions 1/2/3, closed revision 4);
+disabled preserves none. No-op/replay preserve Site revision. The retained HU04
+commit-deadline regression observed an actual waiting COMMIT, returned 503 at
+2.002–2.004 seconds, and recovered the same key with one Site/completion and the
+mode-appropriate event count. HU05-specific uncertainty/cancellation fault injection
+is established by the JVM suites; this HU04 image fault is not relabeled as HU05.
+Providers/broker used refused loopback port 9, confirmed by the harness probe.
+
+Reports/logs: `build/hu05-evidence/{final-jvm,packaged-jvm,native-process}/results/`,
+`native-build.log`, `native-process.log`, `native-image-build.log`,
+`native-image-run.log` and `oci/report.json`. `oci/prepare-v4.log` and
+`oci/disabled-original.log` record actual V4 preparation and native V4→V5 migration.
+The image harness removes only its owned disposable containers. No HU05 native gate
+remains pending; compatible future-writer limits remain in the acceptance review.
