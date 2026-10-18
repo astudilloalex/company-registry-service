@@ -17,6 +17,21 @@ never guesses a key, repairs a snapshot or deletes an acceptance. Previous opera
 namespaces retain their contracts. Runtime remains DML-only and Flyway uses the
 separate migration role. A deployment rollback must preserve V5 and confirmed data.
 
+HU05 writers acquire the tenant-qualified Company lock before the qualified Site
+lock in one sequential transaction. They revalidate ownership/version/states after
+locking. `SiteRepository.update` uses a single bulk UPDATE with tenant/Company/Site
+and expected-version predicates, setting only code/name/type/status/update audit and
+version+1. It does not mutate the managed entity or Company; zero rows is the neutral
+STALE_VERSION outcome. No-op must omit this UPDATE. Diagnostics exclude the current
+Site and remain qualified to its Company/tenant. SQL unique indexes remain final
+arbiters; a committed rename frees its prior code, while rollback retains it.
+
+The existing failure translator classifies SITE_CODE, SITE_HEADQUARTERS and
+COMPLETION_KEY uniquely and leaves unknown uniqueness as UNEXPECTED. A durable
+completion lookup after confirmed transaction finalization must precede translating
+those failures at the use-case boundary. Future Company and child writers must
+respect Company → Site; children share Site's one conditional revision increment.
+
 ## Port ownership
 
 Application owns `CompanyRepository`, `SiteRepository`, `CompletionRepository`,
