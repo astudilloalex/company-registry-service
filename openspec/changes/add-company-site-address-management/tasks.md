@@ -34,8 +34,8 @@
 
 - [x] 5.1 Implementar el camino local protegido CREATE/UPDATE/DELETE con replay antes de estado actual y ausencia de dirección antes de revisión; verificar creación, no-op, comprobante, 404 de eliminadas, 412 de existentes y matriz de estados con pruebas de caso de uso.
 - [x] 5.2 Incorporar preparación/finalización de sesión antes de Geografía y nueva protección posterior; verificar con barreras que no queden locks durante HTTP y que un replay, eliminación, revisión o estado concurrentes prevalezcan sobre el resultado remoto según las specs.
-- [ ] 5.3 Componer dirección, desmarcados indirectos, Site, completado opcional y SiteMutatedOutbox en una aceptación; verificar con fallos inyectados rollback de todas las filas, auditoría común, cero eventos para no-op/replay y modos disabled/stored-only/published sin broker.
-- [ ] 5.4 Añadir el plazo monotónico HU06 y configuración COMPANY_SITE_ADDRESS_WAIT_BUDGET con default 10s; verificar valores inválidos al arranque, timeout externo, espera de locks, finalización incierta, cierre previo a recuperación y ausencia de reejecución automática.
+- [x] 5.3 Componer dirección, desmarcados indirectos, Site, completado opcional y SiteMutatedOutbox en una aceptación; verificar con fallos inyectados rollback de todas las filas, auditoría común, cero eventos para no-op/replay y modos disabled/stored-only/published sin broker.
+- [x] 5.4 Añadir el plazo monotónico HU06 y configuración COMPANY_SITE_ADDRESS_WAIT_BUDGET con default 10s; verificar valores inválidos al arranque, timeout externo, espera de locks, finalización incierta, cierre previo a recuperación y ausencia de reejecución automática.
 - [x] 5.5 Verificar con transacciones/peticiones independientes carreras de primarias, reclasificación, misma clave, claves distintas y misma clave entre Companies; comprobar una aceptación efectiva o conflicto preciso sin datos ajenos, cambios parciales ni versiones/eventos extra.
 - [x] 5.6 Extender las carreras reales con HU05 y ciclo de vida Company, más un escritor de otro hijo que siga el protocolo; verificar versión compartida y orden Company/Site, documentando límites y presupuesto HU06 en docs/architecture/persistence-contract.md.
 
@@ -50,7 +50,7 @@
 
 ## 7. Integración del artefacto y aceptación completa
 
-- [ ] 7.1 Ampliar composición y metadata de serialización nativa HU06 y la suite de proceso empaquetado de src/integrationTest; verificar rutas reales, números exactos, snapshots tras reinicio, contrato OpenAPI/evento y arranque offline sin fixtures en producción.
-- [ ] 7.2 Ejecutar la regresión JVM/PostgreSQL y ./gradlew clean build, ./gradlew quarkusIntTest y ./gradlew verifyProductionIsolation con los perfiles documentados; verificar HU01–HU05 intactas y registrar resultados reales, sin atribuir cobertura nativa al build JVM.
-- [ ] 7.3 Construir y verificar el ejecutable nativo mediante el flujo Mandrel/Podman existente; comprobar creación/PATCH/DELETE/replay/paginación y precisión con las rutas HU06, registrando comando, artefacto y resultados en docs/operations/native-verification.md.
-- [ ] 7.4 Entregar docs/operations/hu06-acceptance-review.md con matriz AC01–AC16, resultados reproducibles JVM/empaquetado/nativo, concurrencia, fallos de dependencia, rollback y retención; verificar que cada criterio y escenario acordado tenga evidencia y que OpenSpec valide estrictamente.
+- [x] 7.1 Ampliar composición y metadata de serialización nativa HU06 y la suite de proceso empaquetado de src/integrationTest; verificar rutas reales, números exactos, snapshots tras reinicio, contrato OpenAPI/evento y arranque offline sin fixtures en producción.
+- [x] 7.2 Ejecutar la regresión JVM/PostgreSQL y ./gradlew clean build, ./gradlew quarkusIntTest y ./gradlew verifyProductionIsolation con los perfiles documentados; verificar HU01–HU05 intactas y registrar resultados reales, sin atribuir cobertura nativa al build JVM.
+- [x] 7.3 Construir y verificar el ejecutable nativo mediante el flujo Mandrel/Podman existente; comprobar creación/PATCH/DELETE/replay/paginación y precisión con las rutas HU06, registrando comando, artefacto y resultados en docs/operations/native-verification.md.
+- [x] 7.4 Entregar docs/operations/hu06-acceptance-review.md con matriz AC01–AC16, resultados reproducibles JVM/empaquetado/nativo, concurrencia, fallos de dependencia, rollback y retención; verificar que cada criterio y escenario acordado tenga evidencia y que OpenSpec valide estrictamente.

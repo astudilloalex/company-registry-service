@@ -63,8 +63,9 @@ class AddressMutationTest {
         var foreign = new AddressScope(TENANT, SCOPE.companyId(), UUID.randomUUID());
         assertThrows(IllegalArgumentException.class, () -> new AddressMutation.View(foreign, address, 7));
         assertThrows(IllegalArgumentException.class, () -> new AddressMutation.View(SCOPE, address, -1));
-        assertEquals(new AddressMutation.Deletion(SCOPE, ADDRESS, 8, NOW, CONTEXT.actor()).scope(), result.scope());
-        assertThrows(IllegalArgumentException.class, () -> new AddressMutation.Deletion(SCOPE, ADDRESS, 0, NOW, CONTEXT.actor()));
+        var actor = CONTEXT.actor();
+        assertEquals(new AddressMutation.Deletion(SCOPE, ADDRESS, 8, NOW, actor).scope(), result.scope());
+        assertThrows(IllegalArgumentException.class, () -> new AddressMutation.Deletion(SCOPE, ADDRESS, 0, NOW, actor));
     }
 
     @Test
