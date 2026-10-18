@@ -64,4 +64,19 @@ class PersistenceFailuresTest {
         var connectionErr = new org.hibernate.JDBCException("conn", new java.sql.SQLException("conn closed", "08006"));
         assertEquals(PersistenceFailure.Kind.UNAVAILABLE, PersistenceFailures.translate(connectionErr).kind());
     }
+
+    @Test void translatesSiteConstraintsEvenWhenWrappedAndLeavesUnknownUniquenessUnexpected() {
+        for (var pair : new Object[][] {
+                {"uq_company_sites_code", PersistenceFailure.Uniqueness.SITE_CODE},
+                {"uq_company_sites_open_headquarters", PersistenceFailure.Uniqueness.SITE_HEADQUARTERS},
+                {"pk_company_idempotency_records", PersistenceFailure.Uniqueness.COMPLETION_KEY},
+                {"uq_company_outbox_event", PersistenceFailure.Uniqueness.OTHER}}) {
+            var cause = new org.hibernate.exception.ConstraintViolationException("duplicate",
+                    new java.sql.SQLException("duplicate", "23505"), (String) pair[0]);
+            var failure = PersistenceFailures.translate(new jakarta.persistence.PersistenceException(cause));
+            assertEquals(pair[1], failure.uniqueness());
+            assertEquals(pair[1] == PersistenceFailure.Uniqueness.OTHER
+                    ? PersistenceFailure.Kind.UNEXPECTED : PersistenceFailure.Kind.DUPLICATE, failure.kind());
+        }
+    }
 }
