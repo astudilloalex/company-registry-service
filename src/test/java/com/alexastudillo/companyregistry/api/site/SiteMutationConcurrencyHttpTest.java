@@ -74,7 +74,8 @@ class SiteMutationConcurrencyHttpTest {
     }
 
     private void blocked(int n) {
-        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5))
+        // Leave finalization time within the application's ten-second request budget.
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(8))
                 .until(() -> scalar("SELECT count(*) FROM pg_locks WHERE NOT granted") >= n);
     }
 

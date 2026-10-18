@@ -67,6 +67,26 @@ The expanded final HTTP matrix passed all 16 cases in 2m18s, including registrat
 of every Site type against actual archive in both orders and HU04 replay after the
 actual Company cycle/archive. Reports: `build/hu03-evidence/final-http-races/results/test/`.
 
+The final source review connected the Domain transition decision explicitly to the
+accepted state and introduced a void guard for already-held opaque audit values,
+retaining the original required-value behavior. A repeated full regression on that
+source executed 379 cases: 378 passed and one existing HU05 SQL-barrier observer
+exceeded its five-second wait. The entire unchanged SiteMutationConcurrencyHttpTest
+suite then passed all eight cases in isolation; build, production isolation and all
+nine productive packaged cases also passed in 3m44s. No invariant assertion was
+removed or relaxed. Evidence is in `final-quality/` and `hu05-race-recheck/`.
+
+The HTTP contract review added the three existing context error codes to the HU03
+OpenAPI enum and verifies missing/duplicate/invalid headers before replay. The
+reader distinguishes an absent body from an invalid whitespace-only JSON document.
+The final contract stage passed all 12 affected HTTP/OpenAPI/signature tests and
+all nine productive packaged cases in 4m28s. Its reports are in `final-contract/`.
+The HU05 barrier observer now permits eight seconds within the unchanged ten-second
+application budget, retaining the same SQL condition and assertions; the final full
+regression will verify that test-only timing adjustment. Earlier native builds were intentionally stopped
+when these final source/contract corrections were made; their cancellation logs
+are not counted as completed native evidence.
+
 OpenSpec strict validation already passed during implementation; it will be
 repeated after every task is complete. PackagedCompanyLifecycleIT checks the actual
 productive JVM/native process with external HTTP/SQL, five transitions, minimal

@@ -66,6 +66,9 @@ public final class OpenApiAssertions {
             assertEquals("#/components/schemas/CompanyOperationalEnvelope", command.getResponses().get("200")
                     .getContent().get("application/json").getSchema().get$ref());
         }
+        io.swagger.v3.oas.models.media.Schema<?> lifecycleCode = assertInstanceOf(io.swagger.v3.oas.models.media.Schema.class,
+                actual.getComponents().getSchemas().get("CompanyLifecycleErrorResponse").getProperties().get("code"));
+        assertTrue(lifecycleCode.getEnum().containsAll(Set.of("process-id-invalid", "tenant-id-invalid", "user-id-invalid")));
         for (var example : expected.getComponents().getExamples().values()) {
             JsonNode value = json.valueToTree(example.getValue());
             assertTrue(value.isObject()); assertTrue(value.path("status").isInt());

@@ -232,7 +232,8 @@ class CompanyLifecycleHttpTest extends LifecycleHttpSupport {
                     { "[]", "request-body-must-be-object" },
                     { "1", "request-body-must-be-object" }, { "\"x\"", "request-body-must-be-object" },
                     { "true", "request-body-must-be-object" },
-                    { "{", "request-body-invalid-json" }, { "{} true", "request-body-invalid-json" },
+                    { "{", "request-body-invalid-json" }, { " ", "request-body-invalid-json" },
+                    { "{} true", "request-body-invalid-json" },
                     { "{} {}", "request-body-invalid-json" },
                     { "{\"reason\":1}", "request-body-contains-unknown-fields" },
                     { "{\"status\":1,\"status\":2}", "request-body-contains-unknown-fields" } }) {
