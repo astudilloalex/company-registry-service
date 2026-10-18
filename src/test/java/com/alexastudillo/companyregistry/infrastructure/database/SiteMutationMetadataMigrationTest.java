@@ -77,7 +77,7 @@ class SiteMutationMetadataMigrationTest extends SqlIntegritySupport {
         assertEquals("6", scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema='site_mutation_upgrade' AND table_type='BASE TABLE'"));
         assertEquals("1", scalar("SELECT count(*) FROM pg_constraint WHERE conname='ck_company_idempotency_site_mutation_metadata' "
                 + "AND connamespace='site_mutation_upgrade'::regnamespace AND convalidated"));
-        assertEquals("6", flyway.info().current().getVersion().getVersion());
+        assertEquals("7", flyway.info().current().getVersion().getVersion());
         flyway.validate();
     }
 

@@ -12,8 +12,11 @@ Verification is in progress. Pending rows below are not execution evidence.
 | --- | --- | --- |
 | Focused JVM/PostgreSQL | 107 tests, zero failures/skips before final codec compatibility regression | `focused-profiles` run |
 | Full clean JVM build / production isolation | 483 tests, zero failures/skips; build and isolation passed | `build/hu06-evidence/jvm/` |
-| Packaged JVM process | Pending | `build/hu06-evidence/packaged-jvm/` |
-| Mandrel native build / native process | Pending | `build/hu06-evidence/native-process/` |
+| Packaged JVM process | 11 productive cases passed; four fixture-only cases reserved for the separate verification artifact | `build/hu06-evidence/packaged-jvm/` |
+| Final HU06 JVM process | Two cases passed, including current GET and collection schema | `build/hu06-evidence/packaged-hu06-final/` |
+| Verification JVM artifact | Pending | `build/verification/hu06-evidence/verification-jvm/` |
+| Mandrel native build / native process | Build passed; 11 productive cases passed, four fixture-only cases reserved for the verification artifact | `build/hu06-evidence/native-process/` |
+| Verification native artifact | Pending | `build/verification/hu06-evidence/verification-native/` |
 | Strict OpenSpec validation | Valid, zero issues; final tracking reconciliation pending | `openspec validate ... --strict --json` |
 
 Reports are preserved per stage with `docs/operations/hu06-test-results.gradle`.
@@ -104,8 +107,9 @@ and historical keys without TTL. Deploy compatible code or suspend HU06 routes
 on rollback; do not erase keys, reset revisions or restore addresses to permit
 another acceptance. No historical repair or current-row fallback is performed.
 
-The other-child concurrency fixture tests the shared Company→Site protection
-and revision protocol; it does not implement or claim HU07 contact management.
+The other-child concurrency fixture tests the shared Company→Site protection,
+revision, common audit and enabled Site-event protocol; it does not implement
+or claim HU07 contact management.
 Geographic acceptance is an observed contract result, without distributed
 atomicity against later provider changes. Pagination observes current pages and
 does not provide a cross-page snapshot. Outbox remains stored PENDING; HU08
