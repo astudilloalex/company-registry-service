@@ -1,5 +1,39 @@
 # Reactive persistence boundary
 
+## HU05 schema extension
+
+V5 adds `ck_company_idempotency_site_mutation_metadata` without changing V1–V4,
+the six application tables, existing identities or snapshots. Each completion in
+company.site.update.v1, company.site.activate.v1, company.site.deactivate.v1 or
+company.site.close.v1 requires an owned Site, original nonnegative expected Site
+version, result status 200, positive fingerprint policy version and valid key ID.
+The existing composite foreign keys, lowercase 64-character hash and versioned
+JSON-object snapshot constraints still apply, including to PATCH no-op acceptances.
+The identity remains tenant/operation/key; resource IDs do not extend the primary key.
+
+Before installing the CHECK, V5 stops with a controlled 23514 diagnostic if historical
+HU05 metadata is incompatible. Operators must inspect original provenance; migration
+never guesses a key, repairs a snapshot or deletes an acceptance. Previous operation
+namespaces retain their contracts. Runtime remains DML-only and Flyway uses the
+separate migration role. A deployment rollback must preserve V5 and confirmed data.
+
+HU05 writers acquire the tenant-qualified Company lock before the qualified Site
+lock in one sequential transaction. They revalidate ownership/version/states after
+locking. `SiteRepository.update` uses a single bulk UPDATE with tenant/Company/Site
+and expected-version predicates, setting only code/name/type/status/update audit and
+version+1. It does not mutate the managed entity or Company; zero rows is the neutral
+STALE_VERSION outcome. No-op must omit this UPDATE. Diagnostics exclude the current
+Site and remain qualified to its Company/tenant. SQL unique indexes remain final
+arbiters; a committed rename frees its prior code, while rollback retains it.
+
+The existing failure translator classifies SITE_CODE, SITE_HEADQUARTERS and
+COMPLETION_KEY uniquely and leaves unknown uniqueness as UNEXPECTED. A durable
+completion lookup after confirmed transaction finalization must precede translating
+those failures at the use-case boundary. Future Company and child writers must
+respect Company → Site; children share Site's one conditional revision increment.
+
+## Port ownership
+
 Application owns `CompanyRepository`, `SiteRepository`, `CompletionRepository`,
 `OutboxRepository` and `AtomicOperation`. Their `RegistryData` projections carry
 pure aggregate concepts, audit/identity/version data and neutral object maps for
@@ -157,3 +191,35 @@ created_at/id descending and preserve both values as the forward boundary.
 Cursor scope includes tenant, Company, effective filters and order with the
 company.site.cursor.v1 HMAC domain; actor/process/limit are excluded. No global
 count, Party, address/contact load or write lock belongs to this read path.
+
+## HU05 accepted result format 1
+
+HU05 uses its own codec, preserving the HU04 DRAFT/0 creation format. Its closed
+snapshot has `site`, `companyStatus` and `effectivelyOperational`; Site retains the
+full qualified identity, code/name/type/status/revision and audit. Original Company
+status verifies the stored boolean without any query to present aggregate state.
+Only the twelve Site response fields are public. UPDATE may retain expectedVersion
+(no-op) or advance once; lifecycle commands must advance once and match their target
+state. A no-op completion has its own acceptance time/actor and need not match Site's
+unchanged update audit. Clock skew between instances can place its acceptance time
+before the Site's prior update time; that ordering does not invalidate the no-op or
+its replay. Effective changes still require the same acceptance time and actor in
+their Site audit. Types, ownership, UTC microseconds, status and revision are
+validated; corruption or unsupported format/policy/key is an internal error.
+
+Policy 1 signs tenant/operation/Company/Site/original version and canonical partial
+intent with presence. Each namespace independently owns tenant/operation/key. Retain
+formats, policies, snapshots and keyring material without TTL. Rotation to K2 retains
+K1; rollback preserves V5 and all confirmed results/events, using compatible code or
+suspending affected routes. Never reconstruct or rewrite history from current rows.
+
+## Evidence boundary for compatible future writers
+
+The HU05 concurrency suite uses independent HTTP requests/JDBC transactions and
+observable lock barriers. Its Company activation/archival and address/contact writers
+are test-only fixtures following Company → Site. Child fixtures compare the common
+Site revision, insert a child and increment Site once in the same transaction; a
+stale child attempt writes nothing. These tests establish local lock/revision
+compatibility only. They do not implement HU03/HU06/HU07 endpoints, remote Party
+eligibility or distributed provider atomicity. Production artifacts contain none of
+these fixture classes; actual endpoint integration remains owned by those stories.

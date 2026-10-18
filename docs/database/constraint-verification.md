@@ -3,6 +3,23 @@
 Authority: `src/main/resources/db/migration/V1__create_company_registry_schema.sql`.
 Diagram: [v1-scheme.dbml](v1-scheme.dbml). V1 remains unchanged.
 
+## V5 — Site mutation completion metadata
+
+Authority: `V5__enforce_site_mutation_completion_metadata.sql`, preserving V1–V4.
+
+| Object | Valid case | Invalid case |
+| --- | --- | --- |
+| `ck_company_idempotency_site_mutation_metadata` | All four HU05 namespaces with owned Site, nonnegative expected version, HTTP 200 and positive fingerprint version/valid key ID | Missing Site/precondition/provenance, negative version or status other than 200 on insert/update |
+
+The migration diagnoses incompatible historical HU05 acceptances with SQLSTATE
+23514 before installing its CHECK. It never rewrites snapshots, deletes acceptances
+or assigns the active signing key to history. Generic hash, snapshot, fingerprint
+pair and composite ownership constraints continue to apply. HU01/HU02/HU04 and
+technical namespaces retain their existing requirements.
+`SiteMutationMetadataIntegrityTest` covers insert/update invalid metadata and scoped
+ownership; `DatabaseStartupTest` covers clean installation, repeated validation and
+runtime DML/DDL separation. Execution evidence must be recorded only after passing.
+
 ## V4 — Site registration support
 
 Authority: `V4__add_site_registration_support.sql`, preserving V1–V3.

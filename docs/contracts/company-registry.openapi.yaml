@@ -430,6 +430,117 @@ paths:
               schema:
                 $ref: '#/components/schemas/SiteErrorResponse'
   /v1/companies/{companyId}/sites/{siteId}:
+    patch:
+      operationId: updateCompanySite
+      summary: Update local Company Site
+      description: If-Match is the original Site revision. Optional key identifies tenant/operation/key.
+        Matching replay precedes current state and returns original audit/operativity
+        with current Process-Id. Every new acceptance locks Company then Site; no-op is
+        PATCH only. No provider or broker calls.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSiteRequest'
+            example:
+              name: SEDE NORTE
+      responses:
+        '200':
+          description: Accepted Site, including original historical replay.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteEnvelope'
+        '400':
+          description: Invalid context/path/key/body; if-match-required, if-match-duplicated,
+            if-match-invalid. PATCH field and structural diagnostics use the Site catalog.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '404':
+          description: company-not-found or site-not-found. Ownership precedes state.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed, site-already-in-requested-state,
+            site-transition-not-allowed, active-headquarters-required, headquarters-already-exists,
+            site-code-already-exists, idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '412':
+          description: aggregate-version-mismatch; checked before terminal states, including
+            PATCH no-op.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '500':
+          description: Sanitized server-error, including unsupported/corrupt historical
+            material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '503':
+          description: dependency-unavailable; unresolved result, no automatic write retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
     get:
       operationId: getCompanySite
       summary: Read current tenant and Company qualified Site
@@ -514,6 +625,342 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SiteErrorResponse'
+  /v1/companies/{companyId}/sites/{siteId}/activate:
+    post:
+      operationId: activateCompanySite
+      summary: Activate local Company Site
+      description: If-Match is the original Site revision. Optional key identifies tenant/operation/key.
+        Matching replay precedes current state and returns original audit/operativity
+        with current Process-Id. Every new acceptance locks Company then Site; no-op
+        is PATCH only. No provider or broker calls.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptySiteCommand'
+            example: {}
+      responses:
+        '200':
+          description: Accepted Site, including original historical replay.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteEnvelope'
+        '400':
+          description: Invalid context/path/key/body; if-match-required, if-match-duplicated,
+            if-match-invalid. PATCH field and structural diagnostics use the Site catalog.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '404':
+          description: company-not-found or site-not-found. Ownership precedes state.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed,
+            site-already-in-requested-state, site-transition-not-allowed, active-headquarters-required,
+            headquarters-already-exists, site-code-already-exists, idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '412':
+          description: aggregate-version-mismatch; checked before terminal states, including
+            PATCH no-op.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '500':
+          description: Sanitized server-error, including unsupported/corrupt historical
+            material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '503':
+          description: dependency-unavailable; unresolved result, no automatic write
+            retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+  /v1/companies/{companyId}/sites/{siteId}/deactivate:
+    post:
+      operationId: deactivateCompanySite
+      summary: Deactivate local Company Site
+      description: If-Match is the original Site revision. Optional key identifies tenant/operation/key.
+        Matching replay precedes current state and returns original audit/operativity
+        with current Process-Id. Every new acceptance locks Company then Site; no-op
+        is PATCH only. No provider or broker calls.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptySiteCommand'
+            example: {}
+      responses:
+        '200':
+          description: Accepted Site, including original historical replay.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteEnvelope'
+        '400':
+          description: Invalid context/path/key/body; if-match-required, if-match-duplicated,
+            if-match-invalid. PATCH field and structural diagnostics use the Site catalog.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '404':
+          description: company-not-found or site-not-found. Ownership precedes state.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed,
+            site-already-in-requested-state, site-transition-not-allowed, active-headquarters-required,
+            headquarters-already-exists, site-code-already-exists, idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '412':
+          description: aggregate-version-mismatch; checked before terminal states, including
+            PATCH no-op.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '500':
+          description: Sanitized server-error, including unsupported/corrupt historical
+            material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '503':
+          description: dependency-unavailable; unresolved result, no automatic write
+            retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+  /v1/companies/{companyId}/sites/{siteId}/close:
+    post:
+      operationId: closeCompanySite
+      summary: Close local Company Site
+      description: If-Match is the original Site revision. Optional key identifies tenant/operation/key.
+        Matching replay precedes current state and returns original audit/operativity
+        with current Process-Id. Every new acceptance locks Company then Site; no-op
+        is PATCH only. No provider or broker calls.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptySiteCommand'
+            example: {}
+      responses:
+        '200':
+          description: Accepted Site, including original historical replay.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteEnvelope'
+        '400':
+          description: Invalid context/path/key/body; if-match-required, if-match-duplicated,
+            if-match-invalid. PATCH field and structural diagnostics use the Site catalog.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '404':
+          description: company-not-found or site-not-found. Ownership precedes state.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed,
+            site-already-in-requested-state, site-transition-not-allowed, active-headquarters-required,
+            headquarters-already-exists, site-code-already-exists, idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '412':
+          description: aggregate-version-mismatch; checked before terminal states, including
+            PATCH no-op.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '415':
+          description: unsupported-media-type
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '500':
+          description: Sanitized server-error, including unsupported/corrupt historical
+            material.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
+        '503':
+          description: dependency-unavailable; unresolved result, no automatic write
+            retry.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteMutationErrorResponse'
 components:
   parameters:
     TenantId:
@@ -613,6 +1060,101 @@ components:
         format: uuid
         pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
   schemas:
+    UpdateSiteRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: Required nonblank business text. Strip and uppercase before enforcing
+            the 64 Unicode code point limit; the raw input may contain surrounding whitespace.
+        name:
+          type: string
+          minLength: 1
+          description: Required nonblank business text. Strip and uppercase before enforcing
+            the 200 Unicode code point limit; the raw input may contain surrounding whitespace.
+        siteType:
+          type: string
+          enum:
+          - HEADQUARTERS
+          - BRANCH
+          - WAREHOUSE
+          - OTHER
+      additionalProperties: false
+      description: Partial information. Omission preserves; explicit null rejected. Canonical
+        equality and {} are no-op only with current Site version and editable states.
+    EmptySiteCommand:
+      type: object
+      additionalProperties: false
+      description: 'Optional body: absence or {} only. Consume entire document; any properties
+        or trailing tokens are rejected.'
+    SiteMutationErrorResponse:
+      type: object
+      required:
+      - status
+      - code
+      additionalProperties: false
+      properties:
+        status:
+          type: integer
+          enum:
+          - 400
+          - 404
+          - 409
+          - 500
+          - 503
+          - 412
+          - 415
+        code:
+          type: string
+          enum:
+          - company-not-found
+          - site-not-found
+          - site-code-already-exists
+          - headquarters-already-exists
+          - idempotency-key-already-used-with-different-request
+          - site-registration-not-allowed-for-archived-company
+          - dependency-unavailable
+          - site-code-required
+          - site-code-too-long
+          - site-name-required
+          - site-name-too-long
+          - site-type-null-not-allowed
+          - site-type-not-supported
+          - site-code-must-be-string
+          - site-name-must-be-string
+          - site-type-must-be-string
+          - request-body-required
+          - request-body-invalid-json
+          - request-body-must-be-object
+          - request-body-contains-unknown-fields
+          - request-body-contains-duplicate-fields
+          - company-id-invalid
+          - site-id-invalid
+          - idempotency-key-required
+          - idempotency-key-duplicated
+          - idempotency-key-blank
+          - idempotency-key-too-long
+          - query-parameter-not-supported
+          - query-parameter-repeated
+          - site-status-not-supported
+          - site-page-limit-must-be-an-integer
+          - site-page-limit-must-be-between-1-and-200
+          - site-cursor-invalid-or-incompatible
+          - process-id-invalid
+          - tenant-id-invalid
+          - user-id-invalid
+          - server-error
+          - if-match-required
+          - if-match-duplicated
+          - if-match-invalid
+          - aggregate-version-mismatch
+          - site-mutation-not-allowed-for-archived-company
+          - site-closed
+          - site-already-in-requested-state
+          - site-transition-not-allowed
+          - active-headquarters-required
+          - unsupported-media-type
     ApiErrorDetail:
       type: object
       required:

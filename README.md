@@ -240,3 +240,28 @@ Recovery after rollback checks the durable acceptance in
 a fresh session; unresolved uncertainty returns 503 and permits the same-key retry.
 Keep V4 and all accepted data/keys on application rollback, restoring a compatible
 version or suspending these routes. HU03/HU05 transitions remain unimplemented.
+
+### HU05 Site mutation persistence
+
+HU05 has four independent operation namespaces: `company.site.update.v1`,
+`company.site.activate.v1`, `company.site.deactivate.v1` and `company.site.close.v1`.
+Fingerprint policy 1 signs compact UTF-8 JSON in fixed order: fingerprintVersion,
+tenantId, operation, companyId, siteId, decimal-string expectedVersion, request.
+PATCH request contains code/name/siteType with explicit present/value; lifecycle
+commands sign `{}` whether the HTTP body is absent or empty. Actor, process, key,
+states and outbox mode are excluded. The original policy and key ID verify replay.
+
+The independent HU05 snapshot format 1 stores Site, original Company status and
+boolean operativity. The Company status is internal verification material, absent
+from the twelve-field public Site representation. PATCH no-op can retain older Site
+audit than its completion. Retain all completion records, formats, policies and
+historical keys without TTL. Distribute K1/K2 before activating K2; never relabel K1
+acceptances. Unknown historical material produces a sanitized server error.
+Rollback preserves V5, Sites, completions, events and keys; deploy compatible code
+or suspend HU05 routes rather than deleting accepted history or resetting versions.
+
+`COMPANY_SITE_MUTATION_WAIT_BUDGET` configures
+`company-registry.site-mutation.wait-budget` (default `10s`, positive and finite).
+One budget covers lookup, locking, mutation, finalization, cleanup and recovery.
+Unresolved results return 503; retry an identical keyed request to resolve its
+original acceptance. Writes are never automatically reexecuted after uncertainty.

@@ -20,7 +20,8 @@ public final class OpenApiAssertions {
         var expected = expectedResult.getOpenAPI(); var actual = actualResult.getOpenAPI();
         assertEquals(expected.getInfo(), actual.getInfo());
         assertEquals(Set.of("/v1/companies", "/v1/companies/{companyId}", "/v1/companies/{companyId}/sites",
-                "/v1/companies/{companyId}/sites/{siteId}"), actual.getPaths().keySet());
+                "/v1/companies/{companyId}/sites/{siteId}", "/v1/companies/{companyId}/sites/{siteId}/activate",
+                "/v1/companies/{companyId}/sites/{siteId}/deactivate", "/v1/companies/{companyId}/sites/{siteId}/close"), actual.getPaths().keySet());
         var site = actual.getComponents().getSchemas().get("SiteResponse");
         assertEquals(12, site.getRequired().size());
         assertEquals(Set.of("siteId", "companyId", "code", "name", "siteType", "status", "version", "effectivelyOperational",
@@ -46,6 +47,15 @@ public final class OpenApiAssertions {
         assertEquals(Set.of("code","operatingName","description","logoUrl"), actual.getComponents().getSchemas().get("UpdateCompanyRequest").getProperties().keySet());
         assertFalse(actual.getComponents().getSchemas().get("CompanyOperationalResponse").getProperties().containsKey("party"));
         assertTrue(actual.getComponents().getSchemas().get("CompanyResponse").getRequired().contains("party"));
+        var sitePatch = actual.getPaths().get("/v1/companies/{companyId}/sites/{siteId}").getPatch();
+        assertNotNull(sitePatch);
+        assertTrue(sitePatch.getRequestBody().getRequired());
+        assertEquals(Set.of("code", "name", "siteType"), actual.getComponents().getSchemas().get("UpdateSiteRequest").getProperties().keySet());
+        for (var action : Set.of("activate", "deactivate", "close")) {
+            var command = actual.getPaths().get("/v1/companies/{companyId}/sites/{siteId}/" + action).getPost();
+            assertFalse(command.getRequestBody().getRequired());
+            assertEquals(Set.of("200", "400", "404", "409", "412", "415", "500", "503"), command.getResponses().keySet());
+        }
         var json = new ObjectMapper();
         for (var example : expected.getComponents().getExamples().values()) {
             JsonNode value = json.valueToTree(example.getValue());

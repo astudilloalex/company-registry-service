@@ -60,3 +60,14 @@ the same eventId after Site/Company changes. Delivery is at least once without
 global ordering or exactly-once guarantees; consumers may deduplicate by eventId.
 Schedulers, claims, leases, confirms and delivery retries belong to HU08.
 Schema/example are packaged under META-INF/contracts/events for JVM/native.
+
+## HU05 Site mutation handoff
+
+`company.site.updated.v1` and `company.site.closed.v1` use exchange `company.events`
+and their event type as routing key. Payload has eight fields; the envelope has
+eleven. Close emits only closed; effective PATCH/activation/deactivation emit updated.
+No-op/replay emit neither. Original event identity, context, revision and audit stay
+unchanged across later aggregate changes, mode changes and at-least-once redelivery.
+HU08 must deliver the stored fact; there is no global ordering or exactly-once promise.
+The child example shows a later Site revision whose basic fields stay unchanged;
+HU06/HU07 details require a qualified query and do not enter this payload.

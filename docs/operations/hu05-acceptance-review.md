@@ -1,0 +1,146 @@
+# HU05 acceptance review — add-company-site-lifecycle-management
+
+Date: 2026-10-18. JVM, SQL, HTTP concurrency, packaged JVM, native binary/process
+and non-root OCI gates passed. No required HU05 verification remains pending.
+No production deployment is performed.
+
+## Acceptance matrix
+
+| AC | Behavior | Executed evidence |
+| --- | --- | --- |
+| AC01 | Partial closed PATCH; omission preserves HEADQUARTERS | SiteInformationPolicyTest, SiteMutationBoundaryTest, SiteMutationHttpTest; packaged replay |
+| AC02 | Managed fields excluded; qualified identity/ownership | Metadata SQL insert/update constraints, repository isolation and HTTP 404 precedence |
+| AC03 | Canonical Unicode before limits/signature | Pure information tests, independent HMAC vectors and accented packaged requests |
+| AC04 | Activation under editable Company; ARCHIVED rejects | Sixteen-transition pure matrix, HTTP commands and both-order Company races |
+| AC05 | Independent Site state and historical operativity | HTTP/JSONB tests and packaged no-op true replay after Company deactivation/archival |
+| AC06 | Deactivation rules and legal headquarters protection | Pure/HTTP tests, compatible Company activation race and packaged lifecycle |
+| AC07 | Terminal close; historical resource remains readable | Pure/HTTP commands, redundant close, packaged closure and original replay |
+| AC08 | ACTIVE legal headquarters cannot be removed | Pure matrix, HTTP close/deactivate/reclassification and both-order Company races |
+| AC09 | One non-CLOSED headquarters; own reservation excluded | SQL constraints, repository diagnostics and HTTP Site/HU04 acquisition races |
+| AC10 | Company activation and headquarters withdrawal coordinate | Both-order compatible test writers; no HU03 endpoint or remote Party eligibility claim |
+| AC11 | Common Site revision, exact increment and stale rejection | Conditional bulk update, effective/no-op races and both-order child writer races |
+| AC12 | Tenant/Company/Site scope before revision/state | Qualified repository tests, missing/foreign Site and HTTP precedence |
+| AC13 | Four namespaces, presence, durable replay and rotation | Independent HMAC vectors, same/cross-Company key races, competitor rollback and packaged K1→K2/restart |
+| AC14 | Atomic selected event and explicit uncertainty | Producer/schema tests, all outbox modes, injected failures/response loss, bounded cancellation/recovery and real packaged events |
+| AC15 | No-op preserves Site version/audit; optional completion | Pure/HTTP/JSONB tests, both-order no-op race, no event on replay and packaged historical no-op |
+
+The matrix records the suites establishing each claim. Exhaustive domain matrices
+and independent SQL races execute on JVM; they are not described as exhaustive
+native race coverage. The native harness targets actual serialization, persistence,
+HTTP errors, event contracts, process restart/rotation and non-root execution.
+
+## Executed gates and reports
+
+| Gate | Command selection | Result |
+| --- | --- | --- |
+| Full JVM regression/build/isolation | `./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=final-jvm test build verifyProductionIsolation` | BUILD SUCCESSFUL, 5m48s; 94 suites, 313 tests, 0 failures/errors |
+| Expanded HU05 cases | `test --tests '*SiteMutationDeadlineTest' --tests '*SiteMutationConcurrencyHttpTest' --tests '*SiteMutationBoundaryTest' --tests '*SiteMutationBudgetTest'` with `hu05EvidenceRun=packaged-jvm` | 4 suites, 20 selected tests, 0 failures/errors; includes eight concurrency cases and exact catalog mapping |
+| Packaged JVM suite | Same invocation followed by `quarkusIntTest` | BUILD SUCCESSFUL, total invocation 3m44s; 6 suites discovered; 7 productive tests executed, 4 fixture-only tests skipped, 0 failures/errors |
+
+Database-backed commands use
+`DOCKER_HOST=unix:///run/user/1000/podman/podman.sock TESTCONTAINERS_RYUK_DISABLED=true`.
+The selected HU05 tests overlap the full regression; their counts are not summed
+as unique tests. Reports are under `build/hu05-evidence/final-jvm/results/` and
+`build/hu05-evidence/packaged-jvm/results/`. An earlier isolated selection passed
+21 tests before the final competitor-rollback/deadline additions.
+
+A prior non-isolated run could not finalize Gradle's binary report because
+`build/test-results/test/binary/in-progress-results-generic.bin` disappeared. It
+is not counted as passing evidence. The isolated rerun and later gates passed.
+
+## Persistence, compatibility and artifacts
+
+V1–V4 migration sources were checked unchanged with git diff. PostgreSQL 18 clean
+startup, repeated Flyway validation/history, six application tables, runtime DML
+without DDL, metadata insertion/update rejection, and V4 SQL upgrade all passed.
+Incompatible HU05 history stops with controlled 23514 diagnostics; no migration
+rewrites snapshots, fabricates provenance or deletes acceptances.
+
+HU01/HU02/HU04 fingerprints and result formats remain unchanged and passed their
+regressions. HU05 JSONB round-trips cover all four operations and no-op, strict
+shape/types/ownership/revision, original Company status and boolean, UTC microseconds
+and completion audit independent of unchanged Site audit.
+
+The productive JVM artifact includes OpenAPI and updated/closed schemas/examples,
+with no verification API classes. The packaged process runs from a temporary working
+directory with providers unavailable, retains PostgreSQL across restart and K1→K2,
+and replays all operations/no-op across outbox modes. Original true operativity is
+retained after Company deactivation/archival. Actual updated/closed rows satisfy
+Draft 2020-12 schemas and cross-field identity/time/revision/actor invariants.
+
+## Compatible writer fixtures and limits
+
+SiteMutationConcurrencyHttpTest owns test-only Company activation/archival and
+address/contact writers. They lock qualified Company → Site; child writers compare
+the common Site revision, insert the child and increment Site once atomically.
+Barrier-only connections may hold Site to observe a competing lock wait; they perform
+no business mutation. The tests establish the local protocol, not actual HU03/HU06/
+HU07 endpoints, remote Party eligibility or distributed provider atomicity. None of
+these writers enters production sources. The same limits are in persistence-contract.md.
+
+## Native gate executed
+
+The native build passed in 9m38s using Mandrel 25.0.4.1-Final, 5 GB and two
+threads. The actual ELF process suite passed in 57s: seven productive tests executed,
+four verification-only fixture tests intentionally skipped, zero failures/errors.
+The OCI harness passed under UID 1001 in all three modes, with actual V4→V5 native
+migration, preserved checksums/HU04 acceptance, HU05 operations/no-op, true historical
+boolean, K1→K2 and restart/archival replay. Real native-process mutation events pass
+their published schemas; OCI checks their minimal payloads, states and revisions.
+
+Runner SHA-256: `0f7f14d328daac0e090e3635a85af23e6f9389380a67525e6111a113fcd90f91`.
+Image ID: `80701551de9ab86ddaea47437befeb74b65931bb945b4ba3e9a4a63484a9f754`.
+Commands, fixture preparation details, initial unsupported-target attempt and exact
+results are in [native verification](native-verification.md). The corrected OCI
+report is `build/hu05-evidence/oci/report.json`. Only owned disposable containers
+were removed. JVM-only exhaustive races and the excluded fixture suite are not
+presented as additional native production tests.
+
+## Verification follow-up: independent no-op clocks (2026-10-18)
+
+Formal verification found that an accepted PATCH no-op could fail its identical
+replay when its instance clock was behind Site.updatedAt. The codec no longer
+requires ordering between those independent clocks. Effective mutations still
+require the original acceptance time/actor in Site's updated audit. The persisted
+format, fingerprint policy, keys and migrations are unchanged.
+
+The new codec regression failed with `historical-site-result-invalid` before the
+correction. The passing follow-up checks cover a 1 ms earlier fixed acceptance
+clock in the codec and PostgreSQL service, and a real HTTP no-op/replay after a
+test fixture places Site.updatedAt five minutes ahead. The latter passes against
+both the productive JAR and native executable, preserves all twelve response
+fields, uses the current Process-Id and stores no mutation event. Negative codec
+tests still reject a changed result with a different acceptance time or actor.
+
+| Post-correction gate | Executed result |
+| --- | --- |
+| Codec, JSONB, service, HTTP and architecture selection | 19 tests, zero skipped/failures/errors |
+| Build and verifyProductionIsolation | Passed; combined JVM invocation 4m18s |
+| Productive JAR process | 8 executed, 4 fixture-only skipped, zero failures/errors |
+| Native build | Passed in 10m6s; peak compiler RSS 4.74 GB |
+| Productive native process | 8 executed, 4 fixture-only skipped, zero failures/errors; 55s |
+| Native OCI image | All three outbox modes passed under UID 1001, including restart/rotation and V4→V5 upgrade |
+
+Before this correction, the formal verification reran the full JVM suite: 323
+tests passed with no skips/failures/errors. The post-correction selection overlaps
+that suite; these counts are not added as unique tests. Reports are under
+`build/hu05-evidence/noop-clock-final/results/` and
+`build/hu05-evidence/noop-clock-native/results/`. The expected pre-fix failure is
+under `build/hu05-evidence/noop-clock-red/results/`; an intermediate test-fixture
+failure is not passing evidence.
+
+The latest OCI report is `build/hu05-evidence/noop-clock-oci/report.json`.
+Its runner SHA-256 is
+`7a9d75e10373c7d0d912cb0b872d98c8ed8b3667f21376756004bdf249a090fd`;
+its image ID is
+`5b9ed8661d5bf8649d68060010fe97b97bfb3cc683bba64b71b63691f05d728e`.
+These supersede the pre-correction artifact identities above. All source hashes
+were checked unchanged throughout the final native build and process/image gates.
+The verification warning is resolved; no required follow-up check remains pending.
+
+After the passing follow-up, the seven capability deltas were confirmed synced
+(43 added requirements, three modified). All 18 main specs passed strict validation.
+The spec-driven change was archived with all 36 tasks complete at
+`openspec/changes/archive/2026-10-18-add-company-site-lifecycle-management/`.
+All eleven planning files, including `.openspec.yaml`, retained their original
+hashes during the move. No active OpenSpec change remains.

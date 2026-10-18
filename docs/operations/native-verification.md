@@ -330,3 +330,100 @@ native process suites executed seven checks with no failures/errors; four
 verification-fixture checks remain intentionally excluded from that artifact.
 The accepted runner/image hashes and exact per-mode times are recorded in
 [hu04-acceptance-review.md](hu04-acceptance-review.md).
+
+## HU05 verification completed (2026-10-18)
+
+The full JVM gate passed 313 tests (94 suites, zero skipped/failures/errors),
+productive build and verifyProductionIsolation. The final HU05 selection passed
+20 tests, including eight concurrency cases. Both packaged JVM and native runs
+reported eleven discovered tests: **seven executed successfully and four
+verification-only fixtures intentionally skipped** in the productive artifact.
+The productive Site suite exercises all HU05 operations/no-op, true/false historical
+operativity, actual updated/closed schemas, retained PostgreSQL, restart, K1→K2 and
+all outbox modes. It runs outside the repository working directory with providers
+unavailable; no native fallback to a JVM artifact is used.
+
+Executed commands (database-backed Gradle runs use the Podman/Testcontainers
+exports shown earlier):
+
+```shell
+./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=final-jvm test build verifyProductionIsolation
+./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=packaged-jvm test --tests '*SiteMutationDeadlineTest' --tests '*SiteMutationConcurrencyHttpTest' --tests '*SiteMutationBoundaryTest' --tests '*SiteMutationBudgetTest' quarkusIntTest
+./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+QUARKUS_HTTP_TEST_PORT=0 ./gradlew -I docs/operations/hu05-test-results.gradle -Phu05EvidenceRun=native-process quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+podman build -f src/main/docker/Dockerfile.native-micro -t company-registry-service:hu05-native .
+EVIDENCE_DIR=build/hu05-evidence/oci python3 -u docs/operations/verify-hu05-native-image.py
+```
+
+- Mandrel 25.0.4.1-Final, Java 25.0.4.1+1-LTS; ELF x86-64 executable.
+- Native Gradle build: BUILD SUCCESSFUL in 9m38s; image generation 8m49s,
+  peak RSS 4.68 GB, configured 5 GB/two threads.
+- Native process suite: BUILD SUCCESSFUL in 57s, seven productive tests executed,
+  four fixture-only tests skipped, zero failures/errors.
+- Runner SHA-256: `0f7f14d328daac0e090e3635a85af23e6f9389380a67525e6111a113fcd90f91`.
+- Image ID: `80701551de9ab86ddaea47437befeb74b65931bb945b4ba3e9a4a63484a9f754`.
+- Image configured/runtime UID: `1001`; all disabled/stored-only/published runs passed.
+
+OCI prepares V4 with the existing JVM artifact's Flyway/JDBC libraries and original
+migration sources, then starts the native image with startup migration disabled to
+create an authentic HU04 acceptance. A subsequent normal native startup applies V5
+from V4, preserving V1–V4 checksums and that acceptance. This external preparation is
+necessary because Quarkus 3.40.1 does not expose a Flyway target runtime property.
+An initial unsupported-target harness attempt failed its V4 assertion and is not
+counted as passing evidence; the corrected harness completed successfully.
+
+The OCI HU05 flows execute PATCH, no-op, activate/deactivate/close, historical true
+operativity, closure/archival and K1→K2 replay across mode changes. Stored-only and
+published preserve four mutation events (updated revisions 1/2/3, closed revision 4);
+disabled preserves none. No-op/replay preserve Site revision. The retained HU04
+commit-deadline regression observed an actual waiting COMMIT, returned 503 at
+2.002–2.004 seconds, and recovered the same key with one Site/completion and the
+mode-appropriate event count. HU05-specific uncertainty/cancellation fault injection
+is established by the JVM suites; this HU04 image fault is not relabeled as HU05.
+Providers/broker used refused loopback port 9, confirmed by the harness probe.
+
+Reports/logs: `build/hu05-evidence/{final-jvm,packaged-jvm,native-process}/results/`,
+`native-build.log`, `native-process.log`, `native-image-build.log`,
+`native-image-run.log` and `oci/report.json`. `oci/prepare-v4.log` and
+`oci/disabled-original.log` record actual V4 preparation and native V4→V5 migration.
+The image harness removes only its owned disposable containers. No HU05 native gate
+remains pending; compatible future-writer limits remain in the acceptance review.
+
+## HU05 no-op clock correction verified (2026-10-18)
+
+The HU05 runner/image identities in the preceding section describe the initial
+implementation. Following formal verification, the no-op result codec was corrected
+to allow an acceptance clock earlier than Site's unchanged update audit. Effective
+changes retain strict acceptance time/actor checks; no snapshot format or migration
+changed.
+
+The productive runner was rebuilt with the same Mandrel container/runtime flags,
+5 GB heap, two threads and UuidV7Generator runtime initialization shown above.
+`build/hu05-evidence/noop-clock-native-build.log` records BUILD SUCCESSFUL in
+10m6s and peak compiler RSS 4.74 GB. The subsequent `quarkusIntTest -x quarkusBuild`
+run used `hu05EvidenceRun=noop-clock-native`, `QUARKUS_HTTP_TEST_PORT=0` and the same
+native flags. It passed in 55s: eight productive tests executed, four fixture-only
+tests skipped and zero failures/errors. XML reports live under
+`build/hu05-evidence/noop-clock-native/results/quarkusIntTest/`.
+
+PackagedSiteIT now includes an actual HTTP PATCH no-op and replay after a fixture
+sets Site.updatedAt five minutes ahead of the application clock. Both responses
+preserve the original Site, while completion time precedes its update audit and no
+mutation event is stored. This test passed against the JAR and the new ELF binary.
+The corresponding JVM selection passed 19 tests, build and production isolation;
+the JAR process suite executed eight tests with four fixture-only exclusions.
+
+The image was rebuilt using Dockerfile.native-micro. Running
+`EVIDENCE_DIR=build/hu05-evidence/noop-clock-oci python3 -u docs/operations/verify-hu05-native-image.py`
+passed all three modes under actual/configured UID 1001, V4→V5 migration and preserved
+history, HU05 lifecycle/no-op replay, K1→K2 rotation and restart. The retained HU04
+commit-deadline fixture also passed and is not relabeled as HU05 fault injection.
+Only owned disposable containers were removed.
+
+- Current runner SHA-256: `7a9d75e10373c7d0d912cb0b872d98c8ed8b3667f21376756004bdf249a090fd`.
+- Current image ID: `5b9ed8661d5bf8649d68060010fe97b97bfb3cc683bba64b71b63691f05d728e`.
+- Current OCI report: `build/hu05-evidence/noop-clock-oci/report.json`.
+- Native process log: `build/hu05-evidence/noop-clock-native-process.log`.
+- OCI logs: `build/hu05-evidence/noop-clock-image-build.log` and `build/hu05-evidence/noop-clock-image-run.log`.
+
+The follow-up verification warning is resolved, with no required native check pending.

@@ -127,3 +127,11 @@ original eight-field payload in the eleven-field envelope. Disabled stores zero;
 stored-only/published store one PENDING with counters zero, without broker access.
 Publication remains HU08. Executed acceptance evidence belongs in the HU04 review;
 contract publication alone does not establish native or concurrency acceptance.
+
+## HU05 companion operations
+
+See [Site information and lifecycle](company-site-lifecycle-management.md) for PATCH
+and activate/deactivate/close. HU04 registration keeps its BRANCH default, required
+creation key and DRAFT/0/false replay. GET keeps current operativity; HU05 replay
+keeps its accepted boolean. A committed rename releases the previous code; CLOSED
+retains its current code. Company lifecycle endpoints remain outside HU04/HU05.

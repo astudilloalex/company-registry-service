@@ -25,4 +25,17 @@ public class SiteOperations {
             @ConfigProperty(name="company-registry.site-registration.wait-budget", defaultValue="10s") Duration budget) {
         return new RegisterSite(storage, idempotency, ids, clock, budget);
     }
+    @Produces public MutateSite.Storage mutationStorage(AtomicOperation atomic, CompanyRepository companies, SiteRepository sites,
+            SiteMutationEvents events) {
+        return new MutateSite.Storage(atomic, companies, sites, events);
+    }
+    @Produces public MutateSite.Idempotency mutationIdempotency(CompletionRepository completions, SiteMutationFingerprints fingerprints,
+            SiteMutationResults results) {
+        return new MutateSite.Idempotency(completions, fingerprints, results);
+    }
+    @Produces public MutateSite mutation(MutateSite.Storage storage, MutateSite.Idempotency idempotency,
+            Identifiers ids, Clock clock,
+            @ConfigProperty(name="company-registry.site-mutation.wait-budget", defaultValue="10s") Duration budget) {
+        return new MutateSite(storage, idempotency, ids, clock, budget);
+    }
 }
