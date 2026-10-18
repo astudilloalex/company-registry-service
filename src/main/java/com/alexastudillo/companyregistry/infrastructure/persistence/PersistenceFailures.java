@@ -74,6 +74,8 @@ final class PersistenceFailures {
         return switch (constraint) {
             case "uq_companies_tenant_code" -> Uniqueness.COMPANY_CODE;
             case "uq_companies_tenant_party" -> Uniqueness.COMPANY_PARTY;
+            case "uq_company_sites_code" -> Uniqueness.SITE_CODE;
+            case "uq_company_sites_open_headquarters" -> Uniqueness.SITE_HEADQUARTERS;
             case "pk_company_idempotency_records" -> Uniqueness.COMPLETION_KEY;
             default -> Uniqueness.OTHER;
         };

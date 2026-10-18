@@ -86,6 +86,7 @@ public final class RegisterCompany {
 
     private boolean isRecoverablePersistence(Throwable failure) {
         return failure instanceof PersistenceFailure p
+                && p.transactionFinalized()
                 && (p.kind() == PersistenceFailure.Kind.DUPLICATE || p.kind() == PersistenceFailure.Kind.UNAVAILABLE);
     }
     private Uni<CompanyRegistration.Result> recover(CompanyRegistration.Command command,CompletionKey key,DatabaseBudget budget) {

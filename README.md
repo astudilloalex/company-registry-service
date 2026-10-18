@@ -219,3 +219,49 @@ and optional Idempotency-Key. See [the update contract](docs/contracts/company-i
 for clearing, no-op, durable replay, error precedence and audit semantics.
 `COMPANY_UPDATE_WAIT_BUDGET` sets a shared local database budget (default `10s`,
 positive and finite). PATCH requires no provider or broker connectivity.
+
+HU04 uses that keyring with its independent `company.site.create.v1` policy one.
+Its fingerprint includes tenant, operation, route Company, canonical code/name
+and effective Site type; omitting type equals explicit BRANCH. Keep all historical
+Site policy versions, snapshot codecs and key IDs without TTL. To rotate, deploy
+K1/K2 to all instances before selecting K2; existing acceptances still verify
+with their stored K1. Missing historical material yields a sanitized server error,
+never a new acceptance or a rewritten snapshot. Company fingerprints remain unchanged.
+
+HU04 exposes POST/list under `/v1/companies/{companyId}/sites` and detail under
+`/v1/companies/{companyId}/sites/{siteId}`. Creation requires Idempotency-Key and
+no If-Match; reads need neither. Company → Site locking serializes all new Site
+types against the local parent, leaving its version/audit untouched. Configure
+`COMPANY_SITE_REGISTRATION_WAIT_BUDGET` for the shared database deadline (default
+`10s`, positive finite), covering acquisition, commit, cleanup waits and recovery.
+Atomic work reserves up to 100 ms (at most 10% of its remaining time) for rollback;
+the response deadline also bounds finalization that does not complete.
+Recovery after rollback checks the durable acceptance in
+a fresh session; unresolved uncertainty returns 503 and permits the same-key retry.
+Keep V4 and all accepted data/keys on application rollback, restoring a compatible
+version or suspending these routes. HU03/HU05 transitions remain unimplemented.
+
+### HU05 Site mutation persistence
+
+HU05 has four independent operation namespaces: `company.site.update.v1`,
+`company.site.activate.v1`, `company.site.deactivate.v1` and `company.site.close.v1`.
+Fingerprint policy 1 signs compact UTF-8 JSON in fixed order: fingerprintVersion,
+tenantId, operation, companyId, siteId, decimal-string expectedVersion, request.
+PATCH request contains code/name/siteType with explicit present/value; lifecycle
+commands sign `{}` whether the HTTP body is absent or empty. Actor, process, key,
+states and outbox mode are excluded. The original policy and key ID verify replay.
+
+The independent HU05 snapshot format 1 stores Site, original Company status and
+boolean operativity. The Company status is internal verification material, absent
+from the twelve-field public Site representation. PATCH no-op can retain older Site
+audit than its completion. Retain all completion records, formats, policies and
+historical keys without TTL. Distribute K1/K2 before activating K2; never relabel K1
+acceptances. Unknown historical material produces a sanitized server error.
+Rollback preserves V5, Sites, completions, events and keys; deploy compatible code
+or suspend HU05 routes rather than deleting accepted history or resetting versions.
+
+`COMPANY_SITE_MUTATION_WAIT_BUDGET` configures
+`company-registry.site-mutation.wait-budget` (default `10s`, positive and finite).
+One budget covers lookup, locking, mutation, finalization, cleanup and recovery.
+Unresolved results return 503; retry an identical keyed request to resolve its
+original acceptance. Writes are never automatically reexecuted after uncertainty.

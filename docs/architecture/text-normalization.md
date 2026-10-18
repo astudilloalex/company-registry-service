@@ -45,6 +45,24 @@ audit intact. Actor, process, keys, UUIDs and URL contents remain excluded from 
 text normalization. `CompanyInformationPatchTest` and `CompanyInformationPolicyTest`
 exercise presence, required clears, canonical limits, exact URLs, no-op and lifecycle.
 
+## Partial Site information (HU05)
+
+`SiteInformationPatch` retains original strings and independent presence for code,
+name and siteType until the current or historical policy is selected.
+`SiteInformationPolicy` applies `BusinessText` only to supplied code/name: strip,
+Locale.ROOT uppercase, then limits of 64/200 Unicode code points. Accents and internal
+spaces remain significant; uppercase expansion counts toward the limits. Present
+null/blank text is rejected with the Site field rule. Present siteType accepts only
+the four exact enum names and rejects null. Omitted siteType retains the current
+classification, including HEADQUARTERS; HU04 registration still defaults to BRANCH.
+
+Equality of resulting code/name/type is a PATCH no-op, including `{}`. Admission,
+revision and legal headquarters protection remain separate mandatory decisions,
+including for no-op. Presence remains part of the signed intent: an empty patch and
+an explicit field equal to the stored value are different requests.
+`SiteInformationPolicyTest` covers these information-management delta requirements;
+`SiteLifecyclePolicyTest` covers lifecycle/terminality and headquarters decisions.
+
 ## Java/PostgreSQL compatibility
 
 Java performs canonicalization; PostgreSQL CHECKs verify the stored canonical output, not an independent normalization of raw request input. Java and PostgreSQL do not promise identical Unicode/collation behavior for every raw character. Tests verify canonical accented Spanish text, Ç, Turkish-locale independence and `straße`→`STRASSE`. PostgreSQL 18 must accept that canonical output under `upper(value) = value` and `btrim(value) = value`. Deployments must use a compatible UTF-8 database locale; do not use SQL `upper(rawInput)` as the request fingerprint algorithm.

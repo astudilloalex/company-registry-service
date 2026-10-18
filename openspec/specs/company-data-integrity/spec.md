@@ -71,10 +71,10 @@ Los contactos SHALL referenciar una sede, restringir su tipo a EMAIL/PHONE/MOBIL
 - **AND** permite conservar contactos eliminados sin bloquear un nuevo primario
 
 ### Requirement: Idempotencia tenant y Company qualified
-La idempotencia SHALL usar PK `(tenant_id,operation,idempotency_key)`, fingerprint y resultado JSON versionado reproducible, con `site_id` nullable. Sus referencias SHALL impedir asociar tenant, Company y Site incompatibles y validar versión esperada, estado HTTP y contenido del resultado. Cada nuevo completado HU01/HU02 SHALL identificar además su política de fingerprint y su clave HMAC sin guardar el secreto.
+La idempotencia SHALL usar PK `(tenant_id,operation,idempotency_key)`, fingerprint y resultado JSON versionado reproducible. site_id SHALL ser nullable para operaciones Company y obligatorio para company.site.create.v1. Sus referencias SHALL impedir tenant/Company/Site incompatibles y validar versión esperada, estado y snapshot. Cada completado HU01/HU02/HU04 SHALL identificar política de fingerprint y clave HMAC sin guardar el secreto.
 
 #### Scenario: Idempotencia de Company y Site
-- **WHEN** se guarda una finalización con Company propia y `site_id` nulo, o con Site de esa Company y tenant
+- **WHEN** se guarda una finalización de operación Company con Company propia y `site_id` nulo, o una operación Site con Site de esa Company y tenant
 - **THEN** PostgreSQL acepta el registro
 - **AND** rechaza sitios de otra Company/tenant, claves repetidas, hash inválido, versión de esquema no positiva o snapshot no objeto
 
@@ -87,6 +87,11 @@ La idempotencia SHALL usar PK `(tenant_id,operation,idempotency_key)`, fingerpri
 - **WHEN** se confirma company.update.v1 con clave, tanto si cambia Company como si es no-op
 - **THEN** conserva Company propia, siteId null, versión esperada original no negativa, HTTP 200, hash y procedencia completos y snapshot con versión de esquema positiva
 - **AND** el snapshot reproduce la Company operacional aceptada sin Party ni dependencia de sus valores actuales
+
+#### Scenario: Completado HU04 reproducible
+- **WHEN** se confirma company.site.create.v1
+- **THEN** conserva Company y Site propios, site_id no nulo, versión esperada null, HTTP 201, hash y procedencia completos y snapshot con versión positiva
+- **AND** el resultado local original reproduce Site DRAFT/version 0/effectivelyOperational false sin consultar datos actuales
 
 ### Requirement: Integridad persistente del outbox
 Outbox SHALL tener unicidad `(tenant_id,aggregate_type,aggregate_id,aggregate_version,event_type)`, índice por estado/próximo intento/creación, payload JSONB, correlación/causalidad, auditoría, intentos, próxima ejecución, diagnóstico y versionado optimista.
@@ -125,7 +130,7 @@ El cambio SHALL ampliar la tabla de completados con `fingerprint_version` y `fin
 - **THEN** la validación persistente rechaza la escritura sin debilitar las referencias tenant/Company/Site
 
 ### Requirement: Snapshot enriquecido original preservado
-El completado de creación SHALL guardar el resultado original completo y versionado, incluyendo la proyección pública de Party e identificadores enmascarados. SHALL conservar sus tipos, valores opacos y nulabilidad interna sin convertirla en una tabla espejo o columnas legales de Company. Su lectura SHALL reproducir la representación HTTP aceptada.
+El completado de creación Company (`company.create.v1`) SHALL guardar el resultado original completo y versionado, incluyendo la proyección pública de Party e identificadores enmascarados. SHALL conservar sus tipos, valores opacos y nulabilidad interna sin convertirla en una tabla espejo o columnas legales de Company. Su lectura SHALL reproducir la representación HTTP aceptada.
 
 #### Scenario: Round-trip y respuesta histórica
 - **WHEN** se guarda y recupera el snapshot con Party, legalEntityDetails e identifiers
@@ -180,3 +185,115 @@ La aceptación HU02 SHALL conservar el resultado operacional completo, con tipos
 - **WHEN** se guarda un no-op con clave o se revierte una versión de aplicación después de aceptar actualizaciones
 - **THEN** se conserva el resultado y el material histórico necesario para su replay
 - **AND** la reversión mantiene V3 y datos confirmados, restaurando una aplicación compatible o suspendiendo las rutas afectadas
+
+### Requirement: Evolución incremental del soporte HU04
+La evolución HU04 SHALL añadir una migración posterior a V3 que preserve checksums V1–V3, las seis tablas, privilegios separados y datos existentes. SHALL validar nuevos metadatos de creación Site sin inventar procedencia ni reconstruir aceptaciones históricas. Un histórico HU04 incompatible SHALL detener la migración con diagnóstico controlado.
+
+#### Scenario: Instalación limpia y upgrade
+- **WHEN** se migra PostgreSQL 18 vacío o una base V3 con Companies, Sites y aceptaciones/eventos HU01/HU02
+- **THEN** instala el nuevo soporte manteniendo datos, restricciones anteriores y checksums
+- **AND** siguen funcionando los replays anteriores y runtime conserva permisos DML sin DDL
+
+#### Scenario: Aceptación histórica incompatible
+- **WHEN** una fila previa company.site.create.v1 no cumple procedencia, resultado o propiedad exigidos
+- **THEN** la migración se detiene antes de habilitar el contrato
+- **AND** no elimina la fila, inventa una clave histórica ni sustituye su snapshot con datos actuales
+
+### Requirement: Forma persistente de aceptación de creación Site
+Los completados company.site.create.v1 SHALL exigir site_id no nulo, expected_aggregate_version null, response_http_status 201, fingerprint_version positivo no nulo y fingerprint_key_id no nulo con formato `[A-Za-z0-9_-]{1,64}`. SHALL conservar las restricciones de hash, snapshot, clave compuesta y referencias tenant/Company/Site.
+
+#### Scenario: Metadatos obligatorios inválidos
+- **WHEN** una inserción o actualización HU04 omite Site/procedencia, usa versión no positiva, keyId inválido, versión esperada no null o estado distinto de 201
+- **THEN** PostgreSQL rechaza la escritura sin debilitar HU01/HU02 ni namespaces técnicos históricos
+
+#### Scenario: Referencias y contenido incompatibles
+- **WHEN** la aceptación referencia Site de otra Company/tenant, duplica su clave, usa hash no hexadecimal de 64 caracteres, snapshot no objeto o versión de snapshot no positiva
+- **THEN** la persistencia rechaza la escritura
+
+### Requirement: Snapshot local original de Site conservado
+La aceptación HU04 SHALL conservar todos los valores y tipos de la proyección pública local original y datos de propiedad necesarios para verificarla. SHALL mantener operatividad false, status DRAFT, revisión 0 y auditoría original sin incorporar Party/direcciones/contactos ni material secreto. Su lectura SHALL verificar coherencia con tenant/Company/Site del completado.
+
+#### Scenario: Round-trip y estado posterior
+- **WHEN** se guarda y recupera el snapshot después de cambiar, activar o cerrar Site o archivar Company
+- **THEN** conserva exactamente IDs, texto, tipo, booleano, enteros, fechas y actores originales
+- **AND** el replay no calcula otra operatividad ni modifica la aceptación
+
+#### Scenario: Snapshot corrupto o ajeno al propietario
+- **WHEN** su versión, identidad, tipos o propiedad no corresponden al completado
+- **THEN** el servicio devuelve un fallo 500 saneado sin devolver datos ajenos ni reconstruir el resultado
+
+### Requirement: Soporte persistente de paginación Site
+El esquema SHALL incluir un índice de company_sites por tenant_id, company_id, created_at DESC e id DESC para el listado acordado. SHALL preservar código único por Company, la FK compuesta y el índice parcial de HEADQUARTERS no cerrado. La evolución SHALL NOT añadir una columna mutable de operatividad efectiva.
+
+#### Scenario: Índice y restricciones instalados
+- **WHEN** se inspecciona el catálogo después de migrar
+- **THEN** el índice incluye ámbito y orden completos y está listo/válido
+- **AND** permanecen las restricciones de propiedad, código e histórico legal, documentadas y verificadas con PostgreSQL 18
+
+### Requirement: Reversión compatible con aceptaciones HU04
+Un rollback de aplicación SHALL conservar migraciones, Sites, completados, eventos y claves históricas necesarios para replay HU04. SHALL restaurar una aplicación compatible o suspender las rutas afectadas, sin borrar aceptaciones, reiniciar revisiones ni introducir TTL.
+
+#### Scenario: Reversión después de aceptar sedes
+- **WHEN** se revierte un despliegue que ya confirmó registros HU04
+- **THEN** conserva el estado durable y el material histórico para recuperar las respuestas aceptadas
+- **AND** siguen intactos los snapshots enriquecidos HU01 y operacionales HU02
+
+### Requirement: Evolución incremental del soporte HU05
+El soporte HU05 SHALL añadirse mediante una migración posterior a V4, conservando seis tablas, checksums V1–V4, datos, restricciones y separación runtime/migrador. SHALL validar la forma de sus completados sin modificar aceptaciones anteriores. Un histórico HU05 incompatible SHALL detener la migración con diagnóstico controlado, sin inventar procedencia ni borrar resultados.
+
+#### Scenario: Instalación limpia y upgrade desde V4
+- **WHEN** se migra una base PostgreSQL 18 vacía o una base V4 con Companies, Sites y aceptaciones/eventos HU01/HU02/HU04
+- **THEN** se instala el soporte HU05 conservando datos, claves, replays y checksums anteriores
+- **AND** runtime conserva permisos DML sin DDL
+
+#### Scenario: Histórico incompatible
+- **WHEN** una fila previa de alguna de las cuatro operaciones HU05 carece de propiedad, resultado o procedencia exigidos
+- **THEN** la migración se detiene sin atribuirle la clave activa, reconstruir su snapshot ni eliminar la fila
+
+### Requirement: Forma persistente de aceptación de mutaciones Site
+Todo completado HU05 SHALL exigir Company/Site propios, site_id no nulo, expected_aggregate_version original no negativo no nulo, response_http_status 200, fingerprint_version positivo y fingerprint_key_id válido no nulo. SHALL conservar PK tenant/operación/clave, hash hexadecimal de 64 caracteres, snapshot objeto versionado y FKs compuestas.
+
+#### Scenario: Las cuatro operaciones y no-op
+- **WHEN** se guarda company.site.update.v1, company.site.activate.v1, company.site.deactivate.v1 o company.site.close.v1
+- **THEN** exige la misma forma persistente de metadatos, también para un PATCH no-op con clave
+
+#### Scenario: Metadato faltante o inválido
+- **WHEN** se omite Site, versión esperada o procedencia, se usa versión negativa, política no positiva, keyId inválido o estado distinto de 200
+- **THEN** PostgreSQL rechaza inserción y actualización de ese completado
+
+#### Scenario: Referencia, identidad y contenido inválidos
+- **WHEN** el completado referencia Site de otra Company/tenant, duplica tenant/operación/clave, usa hash inválido, snapshot no objeto o versión de snapshot no positiva
+- **THEN** la persistencia lo rechaza manteniendo las restricciones anteriores
+
+#### Scenario: Operaciones anteriores preservadas
+- **WHEN** se guardan o recuperan aceptaciones HU01/HU02/HU04 válidas
+- **THEN** conservan sus contratos de site_id, versión esperada, estado y snapshots sin reinterpretarlos como HU05
+
+### Requirement: Snapshot original de mutación Site conservado
+Los snapshots HU05 SHALL conservar todos los valores y tipos de la representación pública aceptada, incluyendo operatividad, revisión y auditoría originales. SHALL permitir verificar identidad y propiedad contra el completado sin leer Company/Site actuales. SHALL interpretar sus formatos independientemente del snapshot de creación HU04.
+
+#### Scenario: Round-trip de actualización, transición y no-op
+- **WHEN** una aceptación HU05 se guarda y recupera desde JSONB
+- **THEN** conserva UUIDs, textos, enum, entero, booleano, fechas UTC/microsegundos y actores originales
+- **AND** un no-op puede conservar auditoría Site anterior a la fecha/actor del completado
+
+#### Scenario: Revisión e intención coherentes
+- **WHEN** se interpreta un completado HU05
+- **THEN** la revisión del snapshot es la esperada más uno para un cambio efectivo, o la misma para un PATCH no-op
+- **AND** activate/deactivate/close requieren su estado resultante y revisión incrementada
+
+#### Scenario: Snapshot corrupto o propietario incompatible
+- **WHEN** la versión de formato es desconocida o identidad, tipos, operación, revisión o propiedad no satisfacen su contrato
+- **THEN** devuelve 500 server-error saneado sin revelar datos ajenos, reparar la aceptación ni repetir la mutación
+
+### Requirement: Retención y reversión compatibles HU05
+Aceptaciones HU05, políticas, formatos y claves históricas necesarios SHALL conservarse sin TTL ni limpieza que permita otra aceptación con la misma identidad. Revertir la aplicación SHALL conservar migraciones, Sites, completados y eventos confirmados, restaurando una versión compatible o suspendiendo las rutas afectadas.
+
+#### Scenario: Rotación y reinicio
+- **WHEN** se activa K2 después de aceptar con K1, se reinicia o se utiliza otra instancia
+- **THEN** conserva K1 y el material histórico necesario para el mismo replay
+
+#### Scenario: Reversión de despliegue
+- **WHEN** se revierte una aplicación que ya aceptó mutaciones HU05
+- **THEN** conserva el esquema y todos los datos confirmados, sin reiniciar revisiones ni borrar completados
+- **AND** siguen intactas las aceptaciones enriquecidas HU01, operacionales HU02 y de registro HU04

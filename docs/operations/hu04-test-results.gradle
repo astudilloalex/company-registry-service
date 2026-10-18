@@ -1,0 +1,9 @@
+// Isolate generated test reports; this does not change test selection or assertions.
+allprojects { project ->
+    def run = project.providers.gradleProperty("hu04EvidenceRun").orElse("jvm").get()
+    project.tasks.withType(org.gradle.api.tasks.testing.Test).configureEach { task ->
+        task.binaryResultsDirectory.set(project.layout.buildDirectory.dir("hu04-evidence/${run}/results/${task.name}/binary"))
+        task.reports.junitXml.outputLocation.set(project.layout.buildDirectory.dir("hu04-evidence/${run}/results/${task.name}/xml"))
+        task.reports.html.outputLocation.set(project.layout.buildDirectory.dir("hu04-evidence/${run}/results/${task.name}/html"))
+    }
+}

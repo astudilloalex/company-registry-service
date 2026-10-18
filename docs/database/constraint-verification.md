@@ -3,6 +3,38 @@
 Authority: `src/main/resources/db/migration/V1__create_company_registry_schema.sql`.
 Diagram: [v1-scheme.dbml](v1-scheme.dbml). V1 remains unchanged.
 
+## V5 — Site mutation completion metadata
+
+Authority: `V5__enforce_site_mutation_completion_metadata.sql`, preserving V1–V4.
+
+| Object | Valid case | Invalid case |
+| --- | --- | --- |
+| `ck_company_idempotency_site_mutation_metadata` | All four HU05 namespaces with owned Site, nonnegative expected version, HTTP 200 and positive fingerprint version/valid key ID | Missing Site/precondition/provenance, negative version or status other than 200 on insert/update |
+
+The migration diagnoses incompatible historical HU05 acceptances with SQLSTATE
+23514 before installing its CHECK. It never rewrites snapshots, deletes acceptances
+or assigns the active signing key to history. Generic hash, snapshot, fingerprint
+pair and composite ownership constraints continue to apply. HU01/HU02/HU04 and
+technical namespaces retain their existing requirements.
+`SiteMutationMetadataIntegrityTest` covers insert/update invalid metadata and scoped
+ownership; `DatabaseStartupTest` covers clean installation, repeated validation and
+runtime DML/DDL separation. Execution evidence must be recorded only after passing.
+
+## V4 — Site registration support
+
+Authority: `V4__add_site_registration_support.sql`, preserving V1–V3.
+
+| Object | Valid case | Invalid case |
+| --- | --- | --- |
+| `ck_company_idempotency_site_creation_metadata` | HU04 acceptance with owned Site, null expected version, status 201 and positive fingerprint version/valid key ID | Missing Site/provenance, nonnull expected version or status other than 201 on insert/update |
+| `ix_company_sites_tenant_company_created` | Catalog keys `(tenant_id,company_id,created_at DESC,id DESC)` valid/ready | Missing index or different scope/order |
+
+`SiteCreationMetadataIntegrityTest` exercises insertion/update and existing hash,
+snapshot and composite ownership constraints. `SiteCreationMetadataMigrationTest`
+exercises V3 upgrade and controlled rejection of incompatible historical HU04
+acceptance without replacing its original snapshot. `SchemaCatalogIntegrityTest`
+checks all named objects. Record execution results only after the suites pass.
+
 ## Evidence convention
 
 The cases below are the verification plan for tasks 5.2–5.7; only the suites

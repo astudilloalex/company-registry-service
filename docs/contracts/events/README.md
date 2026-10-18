@@ -44,3 +44,30 @@ stored snapshot and eventId even after later Company changes. Consumers deduplic
 by eventId and reason about aggregateVersion; no global order or exactly-once
 promise is made. Claims, leases, confirms and delivery retries remain HU08 work.
 Schema and example are packaged under `META-INF/contracts/events/` in JVM/native.
+# company.site.created.v1
+
+HU04 stores an immutable Site fact with the eleven-field envelope and closed
+eight-field payload: siteId, companyId, code, name, siteType, status, createdAt,
+createdBy. aggregateType is COMPANY_SITE, aggregateId equals siteId, revision is
+0, schema is 1, createdAt equals occurredAt, and HTTP causation is explicit null.
+The event UUIDv7 differs from Site's UUIDv7. EffectivelyOperational is excluded.
+
+Disabled stores no event; stored-only/published store one PENDING event with zero
+attempts and technical version. Site, acceptance and enabled event commit together.
+HU04 has no publisher or broker connection. HU08 will use exchange company.events
+and routing key company.site.created.v1, delivering the stored original fact with
+the same eventId after Site/Company changes. Delivery is at least once without
+global ordering or exactly-once guarantees; consumers may deduplicate by eventId.
+Schedulers, claims, leases, confirms and delivery retries belong to HU08.
+Schema/example are packaged under META-INF/contracts/events for JVM/native.
+
+## HU05 Site mutation handoff
+
+`company.site.updated.v1` and `company.site.closed.v1` use exchange `company.events`
+and their event type as routing key. Payload has eight fields; the envelope has
+eleven. Close emits only closed; effective PATCH/activation/deactivation emit updated.
+No-op/replay emit neither. Original event identity, context, revision and audit stay
+unchanged across later aggregate changes, mode changes and at-least-once redelivery.
+HU08 must deliver the stored fact; there is no global ordering or exactly-once promise.
+The child example shows a later Site revision whose basic fields stay unchanged;
+HU06/HU07 details require a qualified query and do not enter this payload.
