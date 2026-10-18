@@ -19,6 +19,17 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
     private static final String PARAM_COMPANY = "company";
     private static final String PARAM_SITE = "site";
 
+    @Override
+    public Uni<SiteRecord> currentHeadquartersForUpdate(UUID tenantId, UUID companyId) {
+        return find("tenantId = ?1 and companyId = ?2 and type = ?3 and status <> ?4", tenantId, companyId,
+                com.alexastudillo.companyregistry.domain.model.SiteType.HEADQUARTERS,
+                com.alexastudillo.companyregistry.domain.model.SiteStatus.CLOSED)
+                .withLock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE).list().map(rows -> {
+                    if (rows.size() > 1) throw new IllegalStateException("headquarters-integrity-invalid");
+                    return rows.isEmpty() ? null : rows.getFirst().value();
+                });
+    }
+
     @Override public Uni<LocalSite> detail(UUID tenant, UUID company, UUID site) {
         return Panache.getSession().chain(session -> session.createQuery(LOCAL + " and s.id = :site", Object[].class)
                 .setParameter(PARAM_TENANT, tenant).setParameter(PARAM_COMPANY, company).setParameter(PARAM_SITE, site)

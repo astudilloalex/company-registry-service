@@ -9,5 +9,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 
 /** Metadata stays at the native boundary; core records remain framework-free. */
 @RegisterForReflection(targets={CompanyRegistration.Result.class, RegistryData.CompanyRecord.class, RegistryData.Audit.class,
-        Company.class, AggregateVersion.class, PartyView.class, PartyView.LegalEntity.class, PartyView.Identifier.class})
+        Company.class, AggregateVersion.class, com.alexastudillo.companyregistry.domain.model.CompanyStatus.class,
+        PartyView.class, PartyView.LegalEntity.class, PartyView.Identifier.class})
 final class CompanyNativeMetadata {}

@@ -10,6 +10,8 @@ public interface SiteRepository {
     Uni<SiteRecord> find(UUID tenantId, UUID companyId, UUID siteId);
     /** Caller must acquire the qualified Company lock first, within the same transaction. */
     Uni<SiteRecord> findForUpdate(UUID tenantId, UUID companyId, UUID siteId);
+    /** Resolve the current legal headquarters under protection, after the Company lock. */
+    Uni<SiteRecord> currentHeadquartersForUpdate(UUID tenantId, UUID companyId);
     Uni<SiteRecord> update(SiteRecord site, long expectedVersion);
     Uni<SiteRecord> insert(SiteRecord site);
     /** Scoped diagnostics; SQL uniqueness remains authoritative. */
