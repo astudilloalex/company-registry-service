@@ -209,3 +209,14 @@ intent with presence. Each namespace independently owns tenant/operation/key. Re
 formats, policies, snapshots and keyring material without TTL. Rotation to K2 retains
 K1; rollback preserves V5 and all confirmed results/events, using compatible code or
 suspending affected routes. Never reconstruct or rewrite history from current rows.
+
+## Evidence boundary for compatible future writers
+
+The HU05 concurrency suite uses independent HTTP requests/JDBC transactions and
+observable lock barriers. Its Company activation/archival and address/contact writers
+are test-only fixtures following Company → Site. Child fixtures compare the common
+Site revision, insert a child and increment Site once in the same transaction; a
+stale child attempt writes nothing. These tests establish local lock/revision
+compatibility only. They do not implement HU03/HU06/HU07 endpoints, remote Party
+eligibility or distributed provider atomicity. Production artifacts contain none of
+these fixture classes; actual endpoint integration remains owned by those stories.
