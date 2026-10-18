@@ -23,7 +23,20 @@ public class ReactiveAtomicOperation implements AtomicOperation {
                 .setParameter("timeout",timeout).getSingleResult()).replaceWithVoid();
     }
     @Override public <T> Uni<T> execute(Supplier<Uni<T>> operation) {
-        return Uni.createFrom().deferred(() -> Panache.withTransaction(operation))
+        return Uni.createFrom().deferred(() -> {
+            var cancelled = new java.util.concurrent.CompletableFuture<T>();
+            var finalized = new java.util.concurrent.CompletableFuture<Void>();
+            // Turn downstream cancellation into a failure inside the transaction. Panache's
+            // outer cancellation hook otherwise closes the session before HR's async rollback.
+            // Work still has a single subscription; the second Uni is only a cancellation signal.
+            return Panache.withTransaction(() -> Uni.combine().any().of(operation.get(),
+                            Uni.createFrom().completionStage(cancelled)))
+                    .onTermination().invoke(() -> finalized.complete(null))
+                    .onCancellation().call(() -> {
+                        cancelled.completeExceptionally(new java.util.concurrent.CancellationException());
+                        return Uni.createFrom().completionStage(finalized);
+                    });
+        })
                 .onFailure(PersistenceFailures::technical).transform(PersistenceFailures::translate);
     }
     @Override public <T> Uni<T> read(Supplier<Uni<T>> operation) {
