@@ -426,4 +426,58 @@ Only owned disposable containers were removed.
 - Native process log: `build/hu05-evidence/noop-clock-native-process.log`.
 - OCI logs: `build/hu05-evidence/noop-clock-image-build.log` and `build/hu05-evidence/noop-clock-image-run.log`.
 
-The follow-up verification warning is resolved, with no required native check pending.
+## HU03 productive native and OCI verification (2026-10-18)
+
+The final HU03 executable was built with the existing Mandrel JDK 25 procedure,
+5 GiB heap and two compiler threads. `quarkusBuild` passed in **10m22s**;
+native-image reported peak RSS **4.66 GB**. The ELF is 109935672 bytes and its
+SHA-256 is `400289e85a6f145308d7a7670a817662ef6cfa026463c85932fdf2bde9593fd4`.
+The exact artifact record and a preserved executable are under
+`build/hu03-evidence/native-artifact.json` and `company-registry-hu03-native-runner`.
+Earlier builds were deliberately stopped for final code/contract corrections;
+their cancellation logs are not successful native evidence.
+
+Executed commands (with the same Podman/Testcontainers environment described above):
+
+```shell
+./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+QUARKUS_HTTP_TEST_PORT=0 ./gradlew -I docs/operations/hu03-test-results.gradle -Phu03EvidenceRun=native-process quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+podman build -f src/main/docker/Dockerfile.native-micro -t company-registry-service:hu03-native .
+EVIDENCE_DIR=build/hu03-evidence/oci python3 -u docs/operations/verify-hu03-native-image.py
+```
+
+The productive native process suite passed in **1m2s**: all nine productive cases
+executed successfully, including PackagedCompanyLifecycleIT. Its four
+PackagedVerificationIT probes are intentionally disabled because
+`verification.artifact=false`; those routes/classes are excluded from production.
+They are not counted as executed HU03 coverage. Reports are isolated in
+`build/hu03-evidence/native-process/results/quarkusIntTest/`.
+
+The actual native process exercised activation, deactivation, reactivation and
+archival, minimal Party eligibility and representative errors, preserved Site
+revision/operativity, operational snapshots with null optionals, actual Company
+events validated against packaged schemas, and three restarts with K2 retaining
+K1 under different outbox modes. It runs from a temporary working directory with
+external HTTP/SQL fixtures and no source or in-process CDI fixture dependency.
+
+The OCI harness also passed all three modes with UID **1001**. It prepared genuine
+Flyway V5 history, accepted HU01/HU02/HU04/HU05 through real endpoints, and preserved
+all six tables, V1–V5 checksums and original replays when the native process installed
+V6. Each mode performed five Company transitions, kept explicit nulls in JSONB,
+and replayed after rotation/restart/mode changes. Disabled produced zero Company
+events; stored-only and published each produced exactly five PENDING facts with
+technical version/attempts zero. Local deactivate/archive/replay worked while Party
+returned 503 and Geography/broker port 9 was confirmed unreachable. Readiness,
+packaged OpenAPI and absence of production verification routes passed.
+
+Image ID: `c41d5fedcd4701bcbd6246f8d120116987921825c6a3a98858160e3faa719428`.
+Logs and actual event JSON are in `build/hu03-evidence/{native-build.log,native-process.log,image-build.log,image-run.log,oci/}`;
+the machine-readable OCI result is `build/hu03-evidence/oci/report.json`.
+Exhaustive concurrency remains JVM/PostgreSQL evidence; these native/OCI process
+checks do not establish an exhaustive native race matrix. Full criteria and
+compatible rollback are recorded in [HU03 acceptance](hu03-acceptance-review.md).
+
+The final complete JVM/PostgreSQL regression also passed all 380 tests in 5m33s,
+with zero failures/errors/skips. Reports are isolated under
+`build/hu03-evidence/final-validation/results/test/`. OpenSpec strict validation
+passed. The follow-up verification warning is resolved, with no required check pending.
