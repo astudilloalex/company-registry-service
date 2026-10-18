@@ -213,6 +213,110 @@ class SiteBudgetTest {
     }
 
     @Test
+    void deadlineRollsBackUnfinishedWorkWithoutASeparateWriteSubscription() throws Exception {
+        var row = seed();
+        var cmd = command(row);
+        var subscriptions = new java.util.concurrent.atomic.AtomicInteger();
+        com.alexastudillo.companyregistry.application.site.SiteCreationEvents unfinished = event ->
+                Uni.createFrom().deferred(() -> {
+                    subscriptions.incrementAndGet();
+                    return Uni.createFrom().nothing();
+                });
+        var registration = new com.alexastudillo.companyregistry.application.site.RegisterSite(
+                new com.alexastudillo.companyregistry.application.site.RegisterSite.Storage(atomic, companies, sites, unfinished),
+                new com.alexastudillo.companyregistry.application.site.RegisterSite.Idempotency(completions, fingerprints, results),
+                ids, clock, Duration.ofMillis(500));
+        var pending = invoke(() -> registration.execute(cmd));
+        var failure = assertThrows(ExecutionException.class, () -> pending.get(2, TimeUnit.SECONDS));
+        assertEquals(com.alexastudillo.companyregistry.application.site.SiteFailure.Kind.UNAVAILABLE,
+                ((com.alexastudillo.companyregistry.application.site.SiteFailure) failure.getCause()).kind());
+        assertEquals(1, subscriptions.get());
+        assertEquals(0, count("company_sites", row.company().tenantId()));
+        assertEquals(0, count("company_idempotency_records", row.company().tenantId()));
+        assertEquals(0, count("company_outbox_events", row.company().tenantId()));
+        var accepted = await(() -> service(atomic, Duration.ofSeconds(5)).execute(cmd));
+        assertEquals(0, accepted.site().site().version().value());
+    }
+
+    @Test
+    void uncertainFinalizationIsBoundedAndARetryReplaysTheCommittedAcceptance() throws Exception {
+        var row = seed();
+        var cmd = command(row);
+        var committed = new java.util.concurrent.atomic.AtomicReference<com.alexastudillo.companyregistry.application.site.SiteRegistration.Result>();
+        var writes = new java.util.concurrent.atomic.AtomicInteger();
+        AtomicOperation missingConfirmation = new AtomicOperation() {
+            @Override public <T> Uni<T> execute(Supplier<Uni<T>> work) { return atomic.execute(work); }
+            @Override public <T> Uni<T> read(Supplier<Uni<T>> work) { return atomic.read(work); }
+            @Override public <T> Uni<T> read(Duration timeout, Supplier<Uni<T>> work) { return atomic.read(timeout, work); }
+            @Override public Uni<Void> checkpoint(Duration remaining) { return atomic.checkpoint(remaining); }
+            @Override public <T> Uni<T> execute(Duration timeout, Supplier<Uni<T>> work) {
+                writes.incrementAndGet();
+                return atomic.execute(timeout, work).invoke(value -> committed.set(
+                        (com.alexastudillo.companyregistry.application.site.SiteRegistration.Result) value))
+                        .chain(_ -> Uni.createFrom().nothing());
+            }
+        };
+        var pending = invoke(() -> service(missingConfirmation, Duration.ofMillis(500)).execute(cmd));
+        var failure = assertThrows(ExecutionException.class, () -> pending.get(2, TimeUnit.SECONDS));
+        assertEquals(com.alexastudillo.companyregistry.application.site.SiteFailure.Kind.UNAVAILABLE,
+                ((com.alexastudillo.companyregistry.application.site.SiteFailure) failure.getCause()).kind());
+        assertNotNull(committed.get());
+        assertEquals(1, writes.get());
+        assertEquals(1, count("company_sites", row.company().tenantId()));
+        assertEquals(1, count("company_idempotency_records", row.company().tenantId()));
+        var replay = await(() -> service(atomic, Duration.ofSeconds(5)).execute(cmd));
+        assertEquals(committed.get(), replay);
+        assertEquals(1, count("company_sites", row.company().tenantId()));
+        assertEquals(1, count("company_idempotency_records", row.company().tenantId()));
+    }
+
+    @Test
+    void deadlineBoundsARealCommitBlockedByADeferredTrigger() throws Exception {
+        var row = seed();
+        var cmd = command(row);
+        var name = "hu04_commit_" + UUID.randomUUID().toString().replace("-", "");
+        long lockKey = UUID.randomUUID().getMostSignificantBits();
+        try (var ddl = flyway.getConfiguration().getDataSource().getConnection();
+                var statement = ddl.createStatement();
+                var holder = flyway.getConfiguration().getDataSource().getConnection()) {
+            holder.setAutoCommit(false);
+            try (var lock = holder.prepareStatement("SELECT pg_advisory_xact_lock(?)")) {
+                lock.setLong(1, lockKey);
+                lock.execute();
+            }
+            statement.execute("CREATE FUNCTION " + name + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
+                    + "IF NEW.tenant_id='" + row.company().tenantId() + "'::uuid THEN "
+                    + "PERFORM pg_advisory_xact_lock(" + lockKey + "); END IF; RETURN NEW; END $$");
+            statement.execute("CREATE CONSTRAINT TRIGGER " + name
+                    + " AFTER INSERT ON company_sites DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "
+                    + name + "()");
+            try {
+                var pending = invoke(() -> service(atomic, Duration.ofSeconds(2)).execute(cmd));
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(1)).until(() -> {
+                    try (var waiting = ddl.createStatement(); var result = waiting.executeQuery(
+                            "SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND NOT granted")) {
+                        result.next();
+                        return result.getInt(1) > 0;
+                    }
+                });
+                var failure = assertThrows(ExecutionException.class, () -> pending.get(3, TimeUnit.SECONDS));
+                assertEquals(com.alexastudillo.companyregistry.application.site.SiteFailure.Kind.UNAVAILABLE,
+                        ((com.alexastudillo.companyregistry.application.site.SiteFailure) failure.getCause()).kind());
+            } finally {
+                holder.rollback();
+                statement.execute("DROP TRIGGER " + name + " ON company_sites");
+                statement.execute("DROP FUNCTION " + name + "()");
+            }
+        }
+        // The timed-out COMMIT is uncertain; retry the key rather than asserting rollback.
+        var accepted = await(() -> service(atomic, Duration.ofSeconds(5)).execute(cmd));
+        var replay = await(() -> service(atomic, Duration.ofSeconds(5)).execute(cmd));
+        assertEquals(accepted, replay);
+        assertEquals(1, count("company_sites", row.company().tenantId()));
+        assertEquals(1, count("company_idempotency_records", row.company().tenantId()));
+    }
+
+    @Test
     void postgresTransientAbortsRollbackAndTheSameKeyCanRetry() throws Exception {
         for (var state : List.of("40001", "40P01")) {
             var row = seed();

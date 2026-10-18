@@ -233,7 +233,10 @@ HU04 exposes POST/list under `/v1/companies/{companyId}/sites` and detail under
 no If-Match; reads need neither. Company → Site locking serializes all new Site
 types against the local parent, leaving its version/audit untouched. Configure
 `COMPANY_SITE_REGISTRATION_WAIT_BUDGET` for the shared database deadline (default
-`10s`, positive finite). Recovery after rollback checks the durable acceptance in
+`10s`, positive finite), covering acquisition, commit, cleanup waits and recovery.
+Atomic work reserves up to 100 ms (at most 10% of its remaining time) for rollback;
+the response deadline also bounds finalization that does not complete.
+Recovery after rollback checks the durable acceptance in
 a fresh session; unresolved uncertainty returns 503 and permits the same-key retry.
 Keep V4 and all accepted data/keys on application rollback, restoring a compatible
 version or suspending these routes. HU03/HU05 transitions remain unimplemented.

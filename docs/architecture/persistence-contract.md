@@ -128,10 +128,18 @@ stays on the same subscription, with no independently subscribed write.
 
 `company-registry.site-registration.wait-budget` reads
 `COMPANY_SITE_REGISTRATION_WAIT_BUDGET` (default 10s, positive finite). One shared
-DatabaseBudget covers all local phases, including recovery and transaction
-finalization; checkpoints set remaining statement_timeout/lock_timeout. Never
-restart the budget between attempts. Deadlock and serialization aborts are
-transient uncertainty, not an invented business conflict.
+DatabaseBudget and a subscription deadline cover all local phases, including
+connection acquisition, recovery, commit and cancellation/cleanup waits;
+checkpoints also set remaining statement_timeout/lock_timeout. Never restart
+the budget between phases. Each atomic phase reserves the smaller of 10% of
+its remaining time and 100 ms for normal rollback/closure. Unfinished work fails
+inside the transaction before that reserve; the outer deadline bounds stalled
+acquisition, finalization and cleanup as well. Timer/cancellation signals return
+to the owning Vert.x context, and cleanup is awaited only for the remaining
+phase time. There is one write subscription and no automatic creation retry.
+An expired deadline returns 503 without asserting that a remote commit rolled
+back: a later retry resolves its durable acceptance. Deadlock and serialization
+aborts are transient uncertainty, not an invented business conflict.
 
 For rollback after HU04 acceptance, retain V4, Sites, completions, events and
 historical keys/codecs. Restore a replay-capable application or suspend Site

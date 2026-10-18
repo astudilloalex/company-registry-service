@@ -52,7 +52,8 @@ public final class RegisterSite {
             return database(false, budget, () -> query(budget, () -> idempotency.completions().find(key)))
                     .chain(stored -> stored != null ? Uni.createFrom().item(replay(command, stored))
                             : persist(command, key, budget));
-        }).onFailure(
+        }).ifNoItem().after(waitBudget).failWith(() -> new SiteFailure(SiteFailure.Kind.UNAVAILABLE))
+                .onFailure(
                 failure -> failure instanceof com.alexastudillo.companyregistry.application.company.CompanyFailure company
                         && company
                                 .kind() == com.alexastudillo.companyregistry.application.company.CompanyFailure.Kind.UNAVAILABLE)

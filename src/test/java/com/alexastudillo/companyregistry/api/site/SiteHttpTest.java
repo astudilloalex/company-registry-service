@@ -146,6 +146,65 @@ class SiteHttpTest {
     }
 
     @Test
+    void continuationUsesCurrentRowsAndFiltersAfterChangesBetweenPages() throws Exception {
+        var company = parent("DRAFT");
+        var path = "/v1/companies/" + company + "/sites";
+        insertPageSite(company, "FIRST", "DRAFT", "BRANCH", "2026-10-17T12:00:03.123456Z");
+        insertPageSite(company, "UNCHANGED", "DRAFT", "BRANCH", "2026-10-17T12:00:02.123456Z");
+        insertPageSite(company, "NO_LONGER_DRAFT", "DRAFT", "BRANCH", "2026-10-17T12:00:01.123456Z");
+        insertPageSite(company, "NOW_DRAFT", "INACTIVE", "BRANCH", "2026-10-17T12:00:00.123456Z");
+        var first = request().queryParam("status", "DRAFT").queryParam("siteType", "BRANCH").queryParam("limit", 1)
+                .get(path).then().statusCode(200).body("data.code", contains("FIRST"))
+                .extract().jsonPath();
+        String cursor = first.getString("nextCursor");
+        assertNotNull(cursor);
+
+        insertPageSite(company, "NEW_ABOVE", "DRAFT", "BRANCH", "2026-10-17T12:00:04.123456Z");
+        insertPageSite(company, "NEW_BELOW", "DRAFT", "BRANCH", "2026-10-17T12:00:02.623456Z");
+        insertPageSite(company, "WRONG_TYPE", "DRAFT", "WAREHOUSE", "2026-10-17T12:00:02.823456Z");
+        insertPageSite(parent("DRAFT"), "OTHER_COMPANY", "DRAFT", "BRANCH", "2026-10-17T12:00:02.923456Z");
+        try (var connection = flyway.getConfiguration().getDataSource().getConnection();
+                var statement = connection.prepareStatement(
+                        "UPDATE company_sites SET status=?::company_site_status WHERE company_id=? AND code=?")) {
+            statement.setString(1, "INACTIVE");
+            statement.setObject(2, company);
+            statement.setString(3, "NO_LONGER_DRAFT");
+            assertEquals(1, statement.executeUpdate());
+            statement.setString(1, "DRAFT");
+            statement.setString(3, "NOW_DRAFT");
+            assertEquals(1, statement.executeUpdate());
+        }
+        var second = request().queryParam("status", "DRAFT").queryParam("siteType", "BRANCH")
+                .queryParam("limit", 2).queryParam("cursor", cursor).get(path).then().statusCode(200)
+                .body("data.code", contains("NEW_BELOW", "UNCHANGED"), "numberOfElements", equalTo(2))
+                .extract().jsonPath();
+        String continuation = second.getString("nextCursor");
+        assertNotNull(continuation);
+        request().queryParam("status", "DRAFT").queryParam("siteType", "BRANCH")
+                .queryParam("limit", 2).queryParam("cursor", continuation).get(path).then().statusCode(200)
+                .body("data.code", contains("NOW_DRAFT"), "numberOfElements", equalTo(1), "nextCursor", nullValue());
+        request().queryParam("status", "DRAFT").queryParam("siteType", "BRANCH").queryParam("limit", 1)
+                .get(path).then().statusCode(200).body("data.code", contains("NEW_ABOVE"));
+    }
+
+    private void insertPageSite(UUID company, String code, String status, String type, String created) throws Exception {
+        try (var connection = flyway.getConfiguration().getDataSource().getConnection();
+                var statement = connection.prepareStatement(
+                        "INSERT INTO company_sites(tenant_id,company_id,code,name,status,site_type,created_at,updated_at,created_by,updated_by) "
+                                + "VALUES(?,?,?,'SITE',?::company_site_status,?::company_site_type,?,?,'Creator','Creator')")) {
+            statement.setObject(1, tenant);
+            statement.setObject(2, company);
+            statement.setString(3, code);
+            statement.setString(4, status);
+            statement.setString(5, type);
+            var timestamp = java.sql.Timestamp.from(java.time.Instant.parse(created));
+            statement.setTimestamp(6, timestamp);
+            statement.setTimestamp(7, timestamp);
+            assertEquals(1, statement.executeUpdate());
+        }
+    }
+
+    @Test
     void headersPathsAndAllQueryDiagnosticsUseSpecificRootCodes() throws Exception {
         var company = parent("DRAFT");
         var path = "/v1/companies/" + company + "/sites";
