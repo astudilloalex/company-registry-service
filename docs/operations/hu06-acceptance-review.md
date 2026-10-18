@@ -11,10 +11,10 @@ Verification is in progress. Pending rows below are not execution evidence.
 | Stage | Result | Evidence |
 | --- | --- | --- |
 | Focused JVM/PostgreSQL | 107 tests, zero failures/skips before final codec compatibility regression | `focused-profiles` run |
-| Full clean JVM build / production isolation | Pending | `build/hu06-evidence/jvm/` |
+| Full clean JVM build / production isolation | 483 tests, zero failures/skips; build and isolation passed | `build/hu06-evidence/jvm/` |
 | Packaged JVM process | Pending | `build/hu06-evidence/packaged-jvm/` |
 | Mandrel native build / native process | Pending | `build/hu06-evidence/native-process/` |
-| Strict OpenSpec validation | Pending | Run after final task reconciliation |
+| Strict OpenSpec validation | Valid, zero issues; final tracking reconciliation pending | `openspec validate ... --strict --json` |
 
 Reports are preserved per stage with `docs/operations/hu06-test-results.gradle`.
 The JVM test heap is 1 GiB: the expanded full suite exhausted Gradle's default
