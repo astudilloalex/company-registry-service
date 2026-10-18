@@ -1755,6 +1755,9 @@ components:
         code:
           type: string
           enum:
+          - process-id-invalid
+          - tenant-id-invalid
+          - user-id-invalid
           - if-match-required
           - if-match-duplicated
           - if-match-invalid

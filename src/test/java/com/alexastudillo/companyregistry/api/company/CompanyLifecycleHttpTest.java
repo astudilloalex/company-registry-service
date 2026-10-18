@@ -12,6 +12,30 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 @io.quarkus.test.junit.TestProfile(LifecycleHttpProfile.class)
 class CompanyLifecycleHttpTest extends LifecycleHttpSupport {
+    @Test void invalidOrRepeatedBusinessContextPrecedesAnAcceptedReplay() throws Exception {
+        var parent = parent("DRAFT");
+        command(parent, "archive", 0, "context", null).then().statusCode(200);
+        for (String field : List.of("Process-Id", "Tenant-Id", "User-Id")) {
+            var headers = new LinkedHashMap<String, String>();
+            headers.put("Process-Id", process); headers.put("Tenant-Id", tenant.toString()); headers.put("User-Id", "Actor-aB");
+            headers.put("If-Match", "0"); headers.put("Idempotency-Key", "context");
+            var original = headers.remove(field);
+            String code = field.toLowerCase(Locale.ROOT) + "-invalid";
+            given().headers(headers).contentType("application/json").post(parent.path() + "/archive")
+                    .then().statusCode(400).body("size()", equalTo(2), "code", equalTo(code));
+            given().headers(headers).header(field, original, original).contentType("application/json")
+                    .post(parent.path() + "/archive").then().statusCode(400).body("size()", equalTo(2), "code", equalTo(code));
+            for (String value : field.equals("User-Id") ? List.of(" ", "x".repeat(129))
+                    : List.of("invalid", "018F1234-5678-7000-8000-aaaaaaaaaaaa")) {
+                given().headers(headers).header(field, value).contentType("application/json").body("{}")
+                        .post(parent.path() + "/archive").then().statusCode(400).body("size()", equalTo(2), "code", equalTo(code));
+            }
+        }
+        given().header("Tenant-Id", tenant).header("User-Id", "x".repeat(128)).header("Process-Id", process)
+                .header("If-Match", "0").header("Idempotency-Key", "context").contentType("application/json")
+                .post(parent.path() + "/archive").then().statusCode(200).header("Process-Id", process);
+        assertTrue(LifecycleReferenceStubResource.stub.requests().isEmpty());
+    }
     @Test
     void ownershipIsIndistinguishableFromAbsenceBeforeVersionStateOrParty() throws Exception {
         var foreign = parent("ACTIVE");

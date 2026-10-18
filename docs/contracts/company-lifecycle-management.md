@@ -26,7 +26,7 @@ is 409 without accepting a no-op or consuming a key. archive on ARCHIVED is term
 
 | Status | HU03 code(s) |
 | --- | --- |
-| 400 | company-id-invalid; if-match-required/duplicated/invalid; idempotency-key-duplicated/blank/too-long; request-body-invalid-json/must-be-object/contains-unknown-fields |
+| 400 | process-id-invalid; tenant-id-invalid; user-id-invalid; company-id-invalid; if-match-required/duplicated/invalid; idempotency-key-duplicated/blank/too-long; request-body-invalid-json/must-be-object/contains-unknown-fields |
 | 404 | company-not-found; party-reference-not-found |
 | 409 | company-archived; company-already-in-requested-state; company-transition-not-allowed; legal-headquarters-required; active-headquarters-required; party-must-be-legal-entity; party-must-be-active; idempotency-key-already-used-with-different-request |
 | 412 | aggregate-version-mismatch |
