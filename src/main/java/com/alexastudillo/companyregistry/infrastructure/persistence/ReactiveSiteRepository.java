@@ -3,6 +3,10 @@ package com.alexastudillo.companyregistry.infrastructure.persistence;
 import com.alexastudillo.companyregistry.application.persistence.SiteRepository;
 import com.alexastudillo.companyregistry.application.persistence.PersistenceFailure;
 import com.alexastudillo.companyregistry.application.persistence.RegistryData.*;
+import com.alexastudillo.companyregistry.application.site.AddressMutation;
+import com.alexastudillo.companyregistry.application.site.AddressScope;
+import com.alexastudillo.companyregistry.application.site.AddressSelection;
+import com.alexastudillo.companyregistry.domain.model.AddressType;
 import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
@@ -18,6 +22,89 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
     private static final String PARAM_TENANT = "tenant";
     private static final String PARAM_COMPANY = "company";
     private static final String PARAM_SITE = "site";
+    private static final String PARAM_ADDRESS = "address";
+    private static final String PARAM_TYPE = "type";
+    private static final String ADDRESSES = "select a, s.version from AddressEntity a, SiteEntity s, CompanyEntity c "
+            + "where a.siteId = s.id and c.id = s.companyId and c.tenantId = s.tenantId "
+            + "and s.tenantId = :tenant and s.companyId = :company and s.id = :site and a.deletedAt is null";
+
+    @Override
+    public Uni<AddressMutation.View> addressDetail(AddressScope scope, UUID addressId) {
+        return Panache.getSession().chain(session -> {
+            var query = session.createQuery(ADDRESSES + " and a.id = :address", Object[].class);
+            addressParameters(scope).forEach(query::setParameter);
+            return query.setParameter(PARAM_ADDRESS, addressId).getSingleResultOrNull();
+        }).map(row -> row == null ? null : addressView(scope, row));
+    }
+
+    @Override
+    public Uni<List<AddressMutation.View>> addressPage(AddressScope scope, AddressSelection.Filters filters,
+            AddressSelection.Boundary boundary, int limit) {
+        if (limit < 1 || limit > 200) throw new IllegalArgumentException("address-page-limit-invalid");
+        var hql = new StringBuilder(ADDRESSES);
+        var parameters = addressParameters(scope);
+        if (filters.addressType() != null) {
+            hql.append(" and a.type = :type"); parameters.put(PARAM_TYPE, filters.addressType());
+        }
+        if (filters.isPrimary() != null) {
+            hql.append(" and a.primaryValue = :primary"); parameters.put("primary", filters.isPrimary());
+        }
+        if (boundary != null) {
+            hql.append(" and (a.createdAt < :created or (a.createdAt = :created and a.id < :address))");
+            parameters.put("created", boundary.createdAt()); parameters.put(PARAM_ADDRESS, boundary.addressId());
+        }
+        hql.append(" order by a.createdAt desc, a.id desc");
+        return Panache.getSession().chain(session -> {
+            var query = session.createQuery(hql.toString(), Object[].class);
+            parameters.forEach(query::setParameter);
+            return query.setMaxResults(limit + 1).getResultList();
+        }).map(rows -> rows.stream().map(row -> addressView(scope, row)).toList());
+    }
+
+    @Override
+    public Uni<AddressRecord> primaryAddress(AddressScope scope, AddressType type) {
+        return addressPage(scope, new AddressSelection.Filters(type, true), null, 1).map(rows -> {
+            if (rows.size() > 1) throw new IllegalStateException("address-primary-integrity-invalid");
+            return rows.isEmpty() ? null : rows.getFirst().address();
+        });
+    }
+
+    @Override
+    public Uni<AddressRecord> updateAddress(AddressScope scope, AddressRecord row) {
+        if (!scope.siteId().equals(row.siteId())) throw new IllegalArgumentException("address-site-mismatch");
+        var parameters = addressParameters(scope);
+        parameters.put(PARAM_ADDRESS, row.id()); parameters.put(PARAM_TYPE, row.type());
+        parameters.put("country", row.countryCode()); parameters.put("division", row.administrativeDivisionCode());
+        parameters.put("line1", row.line1()); parameters.put("line2", row.line2());
+        parameters.put("house", row.houseNumber()); parameters.put("postal", row.postalCode());
+        parameters.put("latitude", row.latitude()); parameters.put("longitude", row.longitude());
+        parameters.put("primary", row.primary()); parameters.put("at", row.audit().updatedAt());
+        parameters.put("actor", row.audit().updatedBy()); parameters.put("deletedAt", row.deletedAt());
+        parameters.put("deletedBy", row.deletedBy());
+        return Panache.getSession().chain(session -> {
+            var query = session.createMutationQuery("update AddressEntity a set type=:type, countryCode=:country, "
+                    + "division=:division, line1=:line1, line2=:line2, houseNumber=:house, postalCode=:postal, "
+                    + "latitude=:latitude, longitude=:longitude, primaryValue=:primary, updatedAt=:at, updatedBy=:actor, "
+                    + "deletedAt=:deletedAt, deletedBy=:deletedBy where a.id=:address and a.siteId=:site and a.deletedAt is null "
+                    + "and exists (select 1 from SiteEntity s, CompanyEntity c where s.id=a.siteId "
+                    + "and s.tenantId=:tenant and s.companyId=:company and c.id=s.companyId and c.tenantId=s.tenantId)");
+            parameters.forEach(query::setParameter);
+            return query.executeUpdate();
+        }).chain(count -> count == 1 ? Uni.createFrom().item(row)
+                : Uni.createFrom().failure(new PersistenceFailure(PersistenceFailure.Kind.INVALID_REFERENCE, null)));
+    }
+
+    private static java.util.HashMap<String, Object> addressParameters(AddressScope scope) {
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put(PARAM_TENANT, scope.tenantId());
+        parameters.put(PARAM_COMPANY, scope.companyId());
+        parameters.put(PARAM_SITE, scope.siteId());
+        return parameters;
+    }
+
+    private static AddressMutation.View addressView(AddressScope scope, Object[] row) {
+        return new AddressMutation.View(scope, ((AddressEntity) row[0]).value(), ((Number) row[1]).longValue());
+    }
 
     @Override
     public Uni<SiteRecord> currentHeadquartersForUpdate(UUID tenantId, UUID companyId) {
@@ -44,7 +131,7 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
         var parameters = new java.util.HashMap<String, Object>();
         parameters.put(PARAM_TENANT, tenant); parameters.put(PARAM_COMPANY, company);
         if (filters.code() != null) { hql.append(" and s.code = :code"); parameters.put("code", filters.code()); }
-        if (filters.siteType() != null) { hql.append(" and s.type = :type"); parameters.put("type", filters.siteType()); }
+        if (filters.siteType() != null) { hql.append(" and s.type = :type"); parameters.put(PARAM_TYPE, filters.siteType()); }
         if (filters.status() != null) { hql.append(" and s.status = :status"); parameters.put("status", filters.status()); }
         if (boundary != null) {
             hql.append(" and (s.createdAt < :created or (s.createdAt = :created and s.id < :id))");
@@ -97,7 +184,7 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
         parameters.put("expected", expectedVersion);
         parameters.put("code", row.code());
         parameters.put("name", row.name());
-        parameters.put("type", row.site().type());
+        parameters.put(PARAM_TYPE, row.site().type());
         parameters.put("status", row.site().status());
         parameters.put("at", row.audit().updatedAt());
         parameters.put("actor", row.audit().updatedBy());

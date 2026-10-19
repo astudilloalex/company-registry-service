@@ -275,3 +275,65 @@ stale child attempt writes nothing. These tests establish local lock/revision
 compatibility only. They do not implement HU06/HU07 endpoints; HU03 adds separate protected activation with remote Party
 eligibility or distributed provider atomicity. Production artifacts contain none of
 these fixture classes; actual endpoint integration remains owned by those stories.
+
+
+## HU06 incremental storage (V7)
+
+V7 preserves the six business tables and V1–V6 checksums. Address completions
+require the original Site precondition for all three operation namespaces,
+including CREATE, and retain the common tenant/operation/key identity. Metadata
+preflight stops incompatible history without rewriting it. The partial address
+page index orders current children by Site, creation descending and ID descending.
+The immediate per-type primary index, immutable identity/creation audit triggers,
+coordinate pair checks and runtime/migrator privileges remain authoritative.
+
+
+### HU06 policy, format, cursors and retention
+
+The independent `AddressFingerprintV1` policy signs compact ordered UTF-8 JSON:
+`fingerprintVersion,tenantId,operation,companyId,siteId,addressId,expectedVersion,request`.
+CREATE has null addressId, materializes canonical defaults and requires a key;
+UPDATE signs field presence separately from null/value; DELETE signs `{}`.
+Request order is addressType,countryCode,addressLine1,administrativeDivisionCode,
+addressLine2,houseNumber,postalCode,latitude,longitude,isPrimary. Coordinates in
+signed material are canonical plain decimal strings; HTTP/snapshots keep numbers.
+The original Site precondition is a decimal string. Actor, process, key text,
+outbox mode and generated identifiers are excluded.
+
+`AddressResultCodec` format 1 stores operation and a closed result containing
+qualified ownership and the accepted address or deletion receipt. It preserves
+internal nulls, original revision and audit, checks exact scalar shapes, ownership,
+address identity and expected revision (unchanged only for UPDATE no-op).
+CREATE requires UUIDv7; UPDATE/DELETE preserve an existing valid UUID identity.
+Unknown/corrupt material fails closed without consulting current rows. HU01–HU05
+codecs and policies remain independent. The common JSONB mapping keeps nulls;
+address decode validates numbers before producing exact BigDecimal values.
+
+`AuthenticatedAddressCursors` format 1 uses the HMAC domain
+`company.site.address.cursor.v1`, a key ID, tenant/Company/Site, effective filters,
+fixed descending creation/ID order and boundary. It excludes actor/process,
+page size and Site revision. A page reads current values; continuation does not
+promise a cross-request snapshot. Cursor length is limited to 4096 characters.
+
+The external fingerprint keyring configures HU06 through the same active key ID
+and retained historical key map. Rotate K1 to K2 by distributing both keys to
+all instances before selecting K2. Retain K1, policy 1, format 1 and accepted rows
+without TTL. Rollback retains V7, all accepted/deleted rows, completions and outbox
+records; run compatible code or suspend HU06 routes. Never delete accepted keys,
+restore deleted addresses or reset revisions to permit a second acceptance.
+`AddressAcceptanceTest` and `AddressCursorTest` verify independent instances,
+K1/K2, original snapshots, formats, ownership and corruption handling.
+
+HU06 uses `AddressDeadline`, default 10s via
+`COMPANY_SITE_ADDRESS_WAIT_BUDGET`, validated as positive finite nanoseconds.
+The CDI producer initializes the use case eagerly: zero, negative or overflowing
+budgets fail startup without a request or a provider call. Keep this startup
+validation when changing composition; constructor validation alone is deferred.
+One monotonic deadline covers lookup, Company then Site protection, finalized
+preparation, geographic HTTP, final revalidation, writes, commit/close and recovery.
+Every database phase receives only the remaining budget and AtomicOperation's
+existing cleanup reserve. Geography runs after the preparation transaction closes.
+Unknown finalization returns unavailable without starting recovery or another
+mutation. Finalized failures can look up an existing acceptance once; writes
+are never automatically reexecuted. Other Site writers must use the same
+Company-before-Site protocol and shared revision, including other child writers.

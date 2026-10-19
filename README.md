@@ -296,3 +296,16 @@ or suspend HU05 routes rather than deleting accepted history or resetting versio
 One budget covers lookup, locking, mutation, finalization, cleanup and recovery.
 Unresolved results return 503; retry an identical keyed request to resolve its
 original acceptance. Writes are never automatically reexecuted after uncertainty.
+
+
+### HU06 address acceptance configuration
+
+`COMPANY_SITE_ADDRESS_WAIT_BUDGET` defaults to `10s` and must be positive and
+finite. Zero, negative or nanosecond-overflowing budgets abort startup before
+any address request arrives. Address acceptance uses the existing externally
+configured fingerprint keyring, with independent policy/format version 1 for the three
+`company.site.address.{create,update,delete}.v1` namespaces. Retain historical
+keys and completions without TTL across rotations, restarts and rollback.
+See `docs/architecture/persistence-contract.md` for signed intent, snapshots,
+cursors, coordination and retention. JVM verification does not establish native
+execution; native outcomes are recorded separately in the operations evidence.

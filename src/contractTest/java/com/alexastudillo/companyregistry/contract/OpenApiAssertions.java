@@ -23,7 +23,9 @@ public final class OpenApiAssertions {
                 "/v1/companies/{companyId}/sites/{siteId}", "/v1/companies/{companyId}/sites/{siteId}/activate",
                 "/v1/companies/{companyId}/sites/{siteId}/deactivate", "/v1/companies/{companyId}/sites/{siteId}/close",
                 "/v1/companies/{companyId}/activate", "/v1/companies/{companyId}/deactivate",
-                "/v1/companies/{companyId}/archive"), actual.getPaths().keySet());
+                "/v1/companies/{companyId}/archive",
+                "/v1/companies/{companyId}/sites/{siteId}/addresses",
+                "/v1/companies/{companyId}/sites/{siteId}/addresses/{addressId}"), actual.getPaths().keySet());
         var site = actual.getComponents().getSchemas().get("SiteResponse");
         assertEquals(12, site.getRequired().size());
         assertEquals(Set.of("siteId", "companyId", "code", "name", "siteType", "status", "version", "effectivelyOperational",
@@ -80,6 +82,13 @@ public final class OpenApiAssertions {
         java.util.Map<?, ?> pagination = expected.getComponents().getSchemas().get("CompanyCollectionEnvelope").getProperties();
         assertTrue(pagination.keySet().containsAll(Set.of("nextCursor", "prevCursor", "totalElements", "totalPages", "numberOfElements")));
         assertFalse(pagination.containsKey("pagination"));
+    }
+
+    public static void addressResponseMatches(String source, JsonNode value, String schemaName) {
+        var parsed = new OpenAPIV3Parser().readContents(source, null, null);
+        assertTrue(parsed.getMessages().isEmpty(), () -> parsed.getMessages().toString());
+        var schemas = parsed.getOpenAPI().getComponents().getSchemas();
+        assertExample(value, schemas.get(schemaName), schemas);
     }
 
     private static void assertExample(JsonNode value, io.swagger.v3.oas.models.media.Schema<?> schema,

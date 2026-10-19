@@ -26,6 +26,17 @@ public interface SiteRepository {
             com.alexastudillo.companyregistry.application.site.SiteSelection.Filters filters,
             com.alexastudillo.companyregistry.application.site.SiteSelection.Boundary boundary, int limit);
     Uni<AddressRecord> insertAddress(UUID tenantId, UUID companyId, AddressRecord address);
+    Uni<com.alexastudillo.companyregistry.application.site.AddressMutation.View> addressDetail(
+            com.alexastudillo.companyregistry.application.site.AddressScope scope, UUID addressId);
+    Uni<List<com.alexastudillo.companyregistry.application.site.AddressMutation.View>> addressPage(
+            com.alexastudillo.companyregistry.application.site.AddressScope scope,
+            com.alexastudillo.companyregistry.application.site.AddressSelection.Filters filters,
+            com.alexastudillo.companyregistry.application.site.AddressSelection.Boundary boundary, int limit);
+    /** Called only after the qualified Company/Site locks, within the same acceptance. */
+    Uni<AddressRecord> primaryAddress(com.alexastudillo.companyregistry.application.site.AddressScope scope,
+            com.alexastudillo.companyregistry.domain.model.AddressType type);
+    /** Qualified bulk update; immutable identity and creation audit remain untouched. */
+    Uni<AddressRecord> updateAddress(com.alexastudillo.companyregistry.application.site.AddressScope scope, AddressRecord address);
     Uni<ContactRecord> insertContact(UUID tenantId, UUID companyId, ContactRecord contact);
     Uni<List<AddressRecord>> addresses(UUID tenantId, UUID companyId, UUID siteId);
     Uni<List<ContactRecord>> contacts(UUID tenantId, UUID companyId, UUID siteId);
