@@ -326,6 +326,9 @@ K1/K2, original snapshots, formats, ownership and corruption handling.
 
 HU06 uses `AddressDeadline`, default 10s via
 `COMPANY_SITE_ADDRESS_WAIT_BUDGET`, validated as positive finite nanoseconds.
+The CDI producer initializes the use case eagerly: zero, negative or overflowing
+budgets fail startup without a request or a provider call. Keep this startup
+validation when changing composition; constructor validation alone is deferred.
 One monotonic deadline covers lookup, Company then Site protection, finalized
 preparation, geographic HTTP, final revalidation, writes, commit/close and recovery.
 Every database phase receives only the remaining budget and AtomicOperation's

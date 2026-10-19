@@ -4,11 +4,67 @@ Change: `add-company-site-address-management`, schema `spec-driven`.
 Acceptance source: [HU06, issue #8](https://github.com/astudilloalex/company-registry-service/issues/8),
 including the agreed OpenSpec deltas and design. Review date: 2026-10-18.
 
-## Execution record
+## Startup-budget regression follow-up (2026-10-18)
 
-All required implementation and verification stages passed. The four
-fixture-only process cases intentionally skipped by each productive artifact
-were executed successfully in its separate verification variant.
+A subsequent review reproduced an invalid-budget startup failure on the current
+source: the process stayed alive with `0s` after eager composition had been
+removed. `AddressOperations.mutation` now has `@Startup`, so the existing
+`AddressDeadline` constructor validation runs before startup completes, without
+an address request or geographic call. The packaged regression now checks zero
+(`0s`), negative (`PT-1S`) and nanosecond overflow (`PT2562048H`), requiring a
+nonzero exit and `site-address-budget-invalid` in each case.
+
+These follow-up results supersede the initial readiness claim below. Commands
+run from the isolated source copy `/tmp/hu06-budget-fix-01a150f1`; reports are
+copied back into the repository without replacing earlier evidence.
+
+| Current-source stage | Result | Evidence |
+| --- | --- | --- |
+| Full clean JVM/PostgreSQL, build and production isolation | 484 tests passed; zero failures/errors/skips; build/isolation passed | `build/hu06-evidence/budget-fix-jvm/` |
+| Productive packaged JVM | 13 cases passed, including all three invalid budgets; four fixture-only cases executed separately | `build/hu06-evidence/budget-fix-jvm/results/quarkusIntTest/` |
+| Separate verification JVM | Four cases passed, zero failures/errors/skips | `build/verification/hu06-evidence/budget-fix-verification-jvm/` |
+| Productive native build/process | New ELF built; 13 cases passed, including all three invalid budgets; four fixture-only cases reserved for the separate variant | `build/hu06-evidence/budget-fix-native/` |
+| Separate verification native | New ELF built; four cases passed, zero failures/errors/skips | `build/verification/hu06-evidence/budget-fix-verification-native/` |
+| Strict OpenSpec and final coherence review | Valid, zero issues; current source matches the tested snapshot | `build/hu06-evidence/budget-fix-strict-validation.json` |
+
+Reproducible JVM commands (same Podman environment as the native follow-up):
+
+```shell
+export DOCKER_HOST=unix:///tmp/hu06-budget-fix-podman-01a150f1.sock
+export TESTCONTAINERS_RYUK_DISABLED=true
+export QUARKUS_HTTP_TEST_PORT=0
+./gradlew --offline -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=budget-fix-jvm clean build verifyProductionIsolation quarkusIntTest
+./gradlew --offline -Pverification=true -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=budget-fix-verification-jvm quarkusIntTest --tests '*PackagedVerificationIT'
+```
+
+Fresh native commands, compiler identity and both current ELF hashes/sizes are
+in [the native follow-up](native-verification.md#hu06-startup-budget-correction-and-re-verification-2026-10-18).
+The seventeen packaged cases executed in their intended JVM variants and again
+in their native variants (thirteen productive plus four verification cases).
+The productive reports' four guarded fixture skips are covered by those separate
+runs. Invalid budgets were checked by starting independent processes, without
+sending an address request; valid offline operation and all outbox modes also
+passed. Source hashes are retained in `build/hu06-evidence/budget-fix-source.json`.
+
+### Current OpenSpec verification report
+
+| Dimension | Result |
+| --- | --- |
+| Completeness | 34/34 tasks; 48 ADDED/MODIFIED requirements mapped; no removed/renamed requirements |
+| Correctness | All 48 requirement mappings and 90 scenarios reviewed against implementation/tests; current JVM, packaged and native evidence passed |
+| Coherence | Design and repository patterns followed; pure Domain/inward dependency tests passed; eager budget validation restored |
+
+The earlier critical startup finding is resolved by the current source and
+three passing invalid-budget process cases in both JVM and native. No critical
+issues, warnings or suggestions remain; no applicable verification check was
+skipped. The change is ready for review and archive. Archiving is a separate
+operation.
+
+## Initial implementation execution record
+
+The initial implementation passed the following stages before the later startup
+regression. Its four fixture-only process cases intentionally skipped by each
+productive artifact executed in its separate verification variant.
 
 | Stage | Result | Evidence |
 | --- | --- | --- |
@@ -130,9 +186,9 @@ Actual productive JVM and native processes passed `PackagedAddressIT`, with
 independent PostgreSQL and HTTP fixtures outside the artifact. Native commands,
 compiler identity, both ELF hashes/sizes and the exact executed scope are recorded
 in [native verification](native-verification.md#hu06-productive-native-verification-2026-10-18).
-The productive native suite passed eleven cases and the separate verification
-native suite passed the remaining four, with zero failures. Eager HU06
-composition is retained for invalid-budget startup rejection.
+The current productive native suite passed thirteen cases and the separate
+verification native suite passed four, with zero failures. Eager HU06 composition
+is retained for zero/negative/overflow invalid-budget startup rejection.
 
 The source copy used for verification was compared against current production,
 verification, packaged-test and contract sources before final tracking. No

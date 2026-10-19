@@ -556,3 +556,64 @@ An isolated copy avoided removal of compiled classes; current production,
 verification, integration-test and contract sources were checked against that
 copy before final tracking. Eager HU06 composition is retained so invalid
 budgets fail at startup, as asserted by `PackagedAddressIT`.
+
+
+## HU06 startup-budget correction and re-verification (2026-10-18)
+
+This follow-up supersedes the earlier HU06 artifact identities for current
+readiness. A review reproduced deferred invalid-budget validation after eager
+composition was removed. `AddressOperations.mutation` now uses `@Startup`,
+retaining the pure `AddressDeadline` validation and default `10s`. The existing
+process regression is parameterized for `0s`, `PT-1S` and `PT2562048H`: each must
+exit nonzero without an address request and include `site-address-budget-invalid`.
+The lifecycle/restart test covers valid budgets with providers unavailable.
+
+Fresh sources were built in `/tmp/hu06-budget-fix-01a150f1`, with reports copied
+back to the repository. The builder was Mandrel 25.0.4.1-Final / Java
+25.0.4.1+1-LTS, target x86-64-v3, with 5 GiB heap and two compiler threads:
+`quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25`, image ID
+`f89ca25c4869c61f5fad581a2c18763d0ed9f0bf3846a3a2f9e037d683212ae6`, digest
+`sha256:50ce63f80dabf588d0e3c43857ae9d1a981d78a3e9ff42579965be23d47254c7`.
+
+| Current variant | Build / executable | Native process evidence |
+| --- | --- | --- |
+| Productive | Build 7m8s; native generation 6m42s; peak RSS 4.77 GB; x86-64 Linux ELF, 111430712 bytes | 13 cases passed in 54s; zero failures/errors. Four fixture cases execute separately. `build/hu06-evidence/budget-fix-native/` |
+| Verification | Build 7m25s; native generation 6m57s; peak RSS 4.62 GB; x86-64 Linux ELF, 111639608 bytes | Four cases passed in 41s; zero failures/errors/skips. `build/verification/hu06-evidence/budget-fix-verification-native/` |
+
+The productive ELF is preserved as
+`build/hu06-evidence/budget-fix-artifacts/productive-runner`, SHA-256
+`42d4e5bcd66a307e0a121b4bf1270c8f36c49b6bab7e3d1f2791ba8a6095a254`.
+Its compiler log is `budget-fix-artifacts/productive-build.log` under the same
+evidence root. The native process suite executes actual address creation,
+PATCH/no-op, GET/list/continuation, DELETE, snapshots after restarts and K1→K2,
+all outbox modes, exact coordinates, published contracts and offline operation.
+All three invalid-budget parameter cases passed against this actual executable.
+
+The verification ELF is preserved as
+`build/hu06-evidence/budget-fix-artifacts/verification-runner`, SHA-256
+`bf2e125f0d31c7dbb995a24ce853bada04fd23e1ee97a49d429c6651ae03ea67`.
+Its compiler log is `budget-fix-artifacts/verification-build.log`. The artifact
+manifest records both executable hashes and sizes. All seventeen packaged cases
+executed in their intended native variants: thirteen productive cases and four
+verification-only cases, with zero failures. The four guarded skips in the
+productive report are not counted as executed there.
+
+Commands used in the isolated source copy:
+
+```shell
+podman system service --time=0 unix:///tmp/hu06-budget-fix-podman-01a150f1.sock
+export DOCKER_HOST=unix:///tmp/hu06-budget-fix-podman-01a150f1.sock
+export TESTCONTAINERS_RYUK_DISABLED=true
+export QUARKUS_HTTP_TEST_PORT=0
+./gradlew --offline quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+./gradlew --offline -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=budget-fix-native quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+./gradlew --offline -Pverification=true quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+./gradlew --offline -Pverification=true -I docs/operations/hu06-test-results.gradle -Phu06EvidenceRun=budget-fix-verification-native quarkusIntTest --tests '*PackagedVerificationIT' -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+```
+
+Current full JVM/PostgreSQL regression passed 484 cases, the clean build and
+production isolation. Productive JVM process checks passed the same 13 cases;
+the separate verification JVM artifact passed its four cases. Native execution
+above is recorded independently of those JVM results. Exhaustive race/rollback
+matrices remain JVM/PostgreSQL evidence; no OCI rebuild or broker publication
+is claimed by this follow-up.

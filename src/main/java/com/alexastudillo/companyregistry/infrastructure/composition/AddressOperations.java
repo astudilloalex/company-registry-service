@@ -4,6 +4,7 @@ import com.alexastudillo.companyregistry.application.site.*;
 import com.alexastudillo.companyregistry.application.persistence.*;
 import com.alexastudillo.companyregistry.application.reference.CountryReferences;
 import com.alexastudillo.companyregistry.application.reference.DivisionReferences;
+import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import java.time.Clock;
@@ -29,7 +30,8 @@ public class AddressOperations {
         return new AddressGeography(countries, divisions);
     }
 
-    @Produces public MutateAddress mutation(MutateAddress.Storage storage, MutateAddress.Idempotency idempotency,
+    // Validate the budget before startup completes, even when no address request arrives.
+    @Produces @Startup public MutateAddress mutation(MutateAddress.Storage storage, MutateAddress.Idempotency idempotency,
             AddressGeography geography, Identifiers ids, Clock clock,
             @ConfigProperty(name = "company-registry.site-address.wait-budget", defaultValue = "10s") Duration budget) {
         return new MutateAddress(storage, idempotency, geography, ids, clock, budget);

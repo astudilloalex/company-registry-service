@@ -16,6 +16,8 @@ import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Same real HTTP/database assertions execute against the packaged JVM and native binary. */
 @QuarkusIntegrationTest
@@ -198,14 +200,15 @@ class PackagedAddressIT {
 
     private static Set<String> fieldNames(JsonNode node) { var names = new HashSet<String>(); node.fieldNames().forEachRemaining(names::add); return names; }
 
-    @Test
-    void invalidAddressBudgetFailsDuringStartup(@TempDir Path work) throws Exception {
+    @ParameterizedTest(name = "invalid budget {0} fails during startup")
+    @ValueSource(strings = {"0s", "PT-1S", "PT2562048H"})
+    void invalidAddressBudgetFailsDuringStartup(String budget, @TempDir Path work) throws Exception {
         var log = work.resolve("hu06-invalid-budget.log");
-        var process = new ProcessBuilder(launchCommand(0, "disabled", "0s")).directory(work.toFile()).redirectErrorStream(true).redirectOutput(log.toFile()).start();
+        var process = new ProcessBuilder(launchCommand(0, "disabled", budget)).directory(work.toFile()).redirectErrorStream(true).redirectOutput(log.toFile()).start();
         try {
-            assertTrue(process.waitFor(40, TimeUnit.SECONDS));
-            assertNotEquals(0, process.exitValue());
-            assertTrue(Files.readString(log).contains("site-address-budget-invalid"));
+            assertTrue(process.waitFor(40, TimeUnit.SECONDS), () -> "Budget " + budget + " did not abort startup");
+            assertNotEquals(0, process.exitValue(), budget);
+            assertTrue(Files.readString(log).contains("site-address-budget-invalid"), budget);
         } finally { if (process.isAlive()) { process.destroyForcibly(); process.waitFor(10, TimeUnit.SECONDS); } }
     }
 
