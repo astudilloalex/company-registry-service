@@ -106,3 +106,19 @@ Company → Site and the common Site revision. Pure policy tests establish domai
 decisions; SQL/HTTP concurrency and atomicity require separate integration evidence.
 
 T00 supplies pure policies and database integrity checks. It does not implement the registration, activation, headquarters replacement or child mutation use cases. SQL concurrency tests must use independent transactions; pure policy tests do not establish transaction correctness.
+
+## HU07 contact protocol
+
+Contact acceptance is local and sequential: initial completion lookup; canonical
+intention; qualified Company lock; completion recheck; qualified Site lock;
+current contact; absence/revision/editability/effective policy; duplicate check;
+destination primary demotion; target write; conditional Site increment;
+optional completion and enabled SiteMutationEvents; commit. Duplicate detection
+precedes every demotion. Company remains unchanged. One microsecond UTC instant
+and exact actor cover all affected rows. No-op writes only an optional completion.
+
+Contacts use the same Site revision as addresses/information/lifecycle. Readers
+join live contacts and Site revision in one statement. Replay restores its own
+snapshot without loading current contacts, even after type changes or removal.
+The total deadline includes commit/close; recovery requires finalized transaction
+and remaining time, never a second mutation. Uncertain finalization returns 503.

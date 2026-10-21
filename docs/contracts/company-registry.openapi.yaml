@@ -2245,6 +2245,586 @@ paths:
             schema:
               $ref: '#/components/schemas/EmptySiteCommand'
             example: {}
+  /v1/companies/{companyId}/sites/{siteId}/contacts:
+    post:
+      operationId: createCompanySiteContact
+      description: Contacts belong to tenant/Company/Site and share Site revision. Locks follow Company then Site;
+        absence precedes If-Match then Company ARCHIVED/Site CLOSED and effective contact rules. Duplicate checking
+        precedes primary demotion. Each effective acceptance advances Site once and emits at most one enabled minimal
+        Site event. No-op and replay preserve revision/audit without an event. Replay returns original HTTP status,
+        data and siteVersion with current Process-Id, even after deletion, closure or archival. No contact verification
+        or external service call occurs. Each GET observes current data with coherent Site revision; cursor pages
+        do not promise a shared temporal snapshot.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Original accepted contact; replay retains original result.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactEnvelope'
+        '400':
+          description: Invalid headers/routes, complete JSON, field types/required, canonical values or query. Semantic
+            error order is contactType/value/label/isPrimary after structural field checks.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '404':
+          description: company-not-found, site-not-found or contact-not-found in ownership order.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed, contact-value-already-exists or
+            idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '412':
+          description: aggregate-version-mismatch after absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '415':
+          description: unsupported-media-type.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '500':
+          description: server-error; corrupt or unavailable historical material is never rebuilt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '503':
+          description: dependency-unavailable for total deadline or uncertain finalization.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContactRequest'
+            example:
+              contactType: EMAIL
+              value: ventas@example.com
+              label: VENTAS
+              isPrimary: true
+    get:
+      operationId: listCompanySiteContacts
+      description: Contacts belong to tenant/Company/Site and share Site revision. Locks follow Company then Site;
+        absence precedes If-Match then Company ARCHIVED/Site CLOSED and effective contact rules. Duplicate checking
+        precedes primary demotion. Each effective acceptance advances Site once and emits at most one enabled minimal
+        Site event. No-op and replay preserve revision/audit without an event. Replay returns original HTTP status,
+        data and siteVersion with current Process-Id, even after deletion, closure or archival. No contact verification
+        or external service call occurs. Each GET observes current data with coherent Site revision; cursor pages
+        do not promise a shared temporal snapshot.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: contactType
+        in: query
+        schema:
+          type: string
+          enum:
+          - EMAIL
+          - PHONE
+          - MOBILE
+          - WHATSAPP
+      - name: isPrimary
+        in: query
+        schema:
+          type: boolean
+        description: Exact true/false; combined with contactType using AND.
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          maxLength: 4096
+        description: Authenticated contact-only scope/filter/order boundary. Actor/process/limit may change. No snapshot
+          across pages.
+      responses:
+        '200':
+          description: Current contact/collection or original accepted result; DELETE returns minimal receipt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactCollectionEnvelope'
+        '400':
+          description: Invalid headers/routes, complete JSON, field types/required, canonical values or query. Semantic
+            error order is contactType/value/label/isPrimary after structural field checks.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '404':
+          description: company-not-found, site-not-found or contact-not-found in ownership order.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed, contact-value-already-exists or
+            idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '412':
+          description: aggregate-version-mismatch after absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '415':
+          description: unsupported-media-type.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '500':
+          description: server-error; corrupt or unavailable historical material is never rebuilt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '503':
+          description: dependency-unavailable for total deadline or uncertain finalization.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+  /v1/companies/{companyId}/sites/{siteId}/contacts/{contactId}:
+    get:
+      operationId: getCompanySiteContact
+      description: Contacts belong to tenant/Company/Site and share Site revision. Locks follow Company then Site;
+        absence precedes If-Match then Company ARCHIVED/Site CLOSED and effective contact rules. Duplicate checking
+        precedes primary demotion. Each effective acceptance advances Site once and emits at most one enabled minimal
+        Site event. No-op and replay preserve revision/audit without an event. Replay returns original HTTP status,
+        data and siteVersion with current Process-Id, even after deletion, closure or archival. No contact verification
+        or external service call occurs. Each GET observes current data with coherent Site revision; cursor pages
+        do not promise a shared temporal snapshot.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: contactId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Current contact/collection or original accepted result; DELETE returns minimal receipt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactEnvelope'
+        '400':
+          description: Invalid headers/routes, complete JSON, field types/required, canonical values or query. Semantic
+            error order is contactType/value/label/isPrimary after structural field checks.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '404':
+          description: company-not-found, site-not-found or contact-not-found in ownership order.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed, contact-value-already-exists or
+            idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '412':
+          description: aggregate-version-mismatch after absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '415':
+          description: unsupported-media-type.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '500':
+          description: server-error; corrupt or unavailable historical material is never rebuilt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '503':
+          description: dependency-unavailable for total deadline or uncertain finalization.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+    patch:
+      operationId: updateCompanySiteContact
+      description: Contacts belong to tenant/Company/Site and share Site revision. Locks follow Company then Site;
+        absence precedes If-Match then Company ARCHIVED/Site CLOSED and effective contact rules. Duplicate checking
+        precedes primary demotion. Each effective acceptance advances Site once and emits at most one enabled minimal
+        Site event. No-op and replay preserve revision/audit without an event. Replay returns original HTTP status,
+        data and siteVersion with current Process-Id, even after deletion, closure or archival. No contact verification
+        or external service call occurs. Each GET observes current data with coherent Site revision; cursor pages
+        do not promise a shared temporal snapshot.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: contactId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      responses:
+        '200':
+          description: Current contact/collection or original accepted result; DELETE returns minimal receipt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactEnvelope'
+        '400':
+          description: Invalid headers/routes, complete JSON, field types/required, canonical values or query. Semantic
+            error order is contactType/value/label/isPrimary after structural field checks.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '404':
+          description: company-not-found, site-not-found or contact-not-found in ownership order.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed, contact-value-already-exists or
+            idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '412':
+          description: aggregate-version-mismatch after absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '415':
+          description: unsupported-media-type.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '500':
+          description: server-error; corrupt or unavailable historical material is never rebuilt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '503':
+          description: dependency-unavailable for total deadline or uncertain finalization.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContactRequest'
+            example:
+              value: nuevo@example.com
+    delete:
+      operationId: deleteCompanySiteContact
+      description: Contacts belong to tenant/Company/Site and share Site revision. Locks follow Company then Site;
+        absence precedes If-Match then Company ARCHIVED/Site CLOSED and effective contact rules. Duplicate checking
+        precedes primary demotion. Each effective acceptance advances Site once and emits at most one enabled minimal
+        Site event. No-op and replay preserve revision/audit without an event. Replay returns original HTTP status,
+        data and siteVersion with current Process-Id, even after deletion, closure or archival. No contact verification
+        or external service call occurs. Each GET observes current data with coherent Site revision; cursor pages
+        do not promise a shared temporal snapshot.
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProcessId'
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: contactId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/ExpectedVersion'
+      - $ref: '#/components/parameters/UpdateIdempotencyKey'
+      responses:
+        '200':
+          description: Current contact/collection or original accepted result; DELETE returns minimal receipt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactDeletionEnvelope'
+        '400':
+          description: Invalid headers/routes, complete JSON, field types/required, canonical values or query. Semantic
+            error order is contactType/value/label/isPrimary after structural field checks.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '404':
+          description: company-not-found, site-not-found or contact-not-found in ownership order.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '409':
+          description: site-mutation-not-allowed-for-archived-company, site-closed, contact-value-already-exists or
+            idempotency-key-already-used-with-different-request.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '412':
+          description: aggregate-version-mismatch after absence and before terminal states.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '415':
+          description: unsupported-media-type.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '500':
+          description: server-error; corrupt or unavailable historical material is never rebuilt.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+        '503':
+          description: dependency-unavailable for total deadline or uncertain finalization.
+          headers:
+            Process-Id:
+              $ref: '#/components/headers/ProcessId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactErrorResponse'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptySiteCommand'
+            example: {}
 components:
   parameters:
     TenantId:
@@ -3499,6 +4079,262 @@ components:
           - site-type-must-be-string
           - site-type-not-supported
           - site-type-null-not-allowed
+          - tenant-id-invalid
+          - unsupported-media-type
+          - user-id-invalid
+    CreateContactRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - contactType
+      - value
+      properties:
+        contactType:
+          type: string
+          description: Required EMAIL, PHONE, MOBILE or WHATSAPP after strip and Locale.ROOT uppercase.
+        value:
+          type: string
+          description: 'EMAIL V1: strip, require ASCII before full Locale.ROOT lowercase, dot-atom local part ≤64 and
+            total ≤254, domain ≥2 labels of 1–63 ASCII alphanumeric characters with interior hyphens. Preserve dots/+aliases.
+            This approved change supersedes HU07 AC07 local-case preservation. PHONE/MOBILE/WHATSAPP require explicit
+            + and accept ASCII digits, spaces, hyphens and parentheses; libphonenumber 9.0.41 validates and emits E.164.
+            MOBILE requires MOBILE/FIXED_LINE_OR_MOBILE. No DNS, SMTP or channel availability verification.'
+        label:
+          type:
+          - string
+          - 'null'
+          description: Strip and uppercase Locale.ROOT, maximum 80 canonical Unicode code points. Null clears, supplied
+            blank rejected.
+        isPrimary:
+          type: boolean
+          default: false
+      description: Omission preserves in PATCH. POST defaults label null and primary false. Supplied fields retain independent
+        presence for replay; value-only PATCH signs EMAIL/PHONE lexical family without current data. Reclassification
+        checks the effective type/value after ownership, revision and state. Explicit selection replaces destination
+        primary atomically without choosing an old-category replacement.
+    UpdateContactRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        contactType:
+          type: string
+          description: Required EMAIL, PHONE, MOBILE or WHATSAPP after strip and Locale.ROOT uppercase.
+        value:
+          type: string
+          description: 'EMAIL V1: strip, require ASCII before full Locale.ROOT lowercase, dot-atom local part ≤64 and
+            total ≤254, domain ≥2 labels of 1–63 ASCII alphanumeric characters with interior hyphens. Preserve dots/+aliases.
+            This approved change supersedes HU07 AC07 local-case preservation. PHONE/MOBILE/WHATSAPP require explicit
+            + and accept ASCII digits, spaces, hyphens and parentheses; libphonenumber 9.0.41 validates and emits E.164.
+            MOBILE requires MOBILE/FIXED_LINE_OR_MOBILE. No DNS, SMTP or channel availability verification.'
+        label:
+          type:
+          - string
+          - 'null'
+          description: Strip and uppercase Locale.ROOT, maximum 80 canonical Unicode code points. Null clears, supplied
+            blank rejected.
+        isPrimary:
+          type: boolean
+      description: Omission preserves in PATCH. POST defaults label null and primary false. Supplied fields retain independent
+        presence for replay; value-only PATCH signs EMAIL/PHONE lexical family without current data. Reclassification
+        checks the effective type/value after ownership, revision and state. Explicit selection replaces destination
+        primary atomically without choosing an old-category replacement.
+    ContactResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - contactId
+      - siteId
+      - siteVersion
+      - contactType
+      - value
+      - isPrimary
+      - createdAt
+      - createdBy
+      - updatedAt
+      - updatedBy
+      properties:
+        contactId:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        siteVersion:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Shared current Site revision on GET; original accepted revision on replay.
+        isPrimary:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+        contactType:
+          type: string
+          enum:
+          - EMAIL
+          - PHONE
+          - MOBILE
+          - WHATSAPP
+        value:
+          type: string
+          maxLength: 254
+        label:
+          type: string
+          maxLength: 80
+    ContactDeletionResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - contactId
+      - siteId
+      - siteVersion
+      - deletedAt
+      - deletedBy
+      properties:
+        contactId:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        siteVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        deletedAt:
+          type: string
+          format: date-time
+        deletedBy:
+          type: string
+    ContactEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      - code
+      - data
+      properties:
+        status:
+          type: integer
+          enum:
+          - 200
+          - 201
+        code:
+          const: successful
+        data:
+          $ref: '#/components/schemas/ContactResponse'
+    ContactDeletionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      - code
+      - data
+      properties:
+        status:
+          type: integer
+          enum:
+          - 200
+        code:
+          const: successful
+        data:
+          $ref: '#/components/schemas/ContactDeletionResponse'
+    ContactCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      - code
+      - data
+      - numberOfElements
+      properties:
+        status:
+          const: 200
+        code:
+          const: successful
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactResponse'
+        numberOfElements:
+          type: integer
+          minimum: 0
+          maximum: 200
+        nextCursor:
+          type: string
+          maxLength: 4096
+    ContactErrorResponse:
+      type: object
+      required:
+      - status
+      - code
+      additionalProperties: false
+      properties:
+        status:
+          type: integer
+          enum:
+          - 400
+          - 404
+          - 409
+          - 412
+          - 415
+          - 500
+          - 503
+        code:
+          type: string
+          enum:
+          - aggregate-version-mismatch
+          - company-id-invalid
+          - company-not-found
+          - contact-cursor-invalid-or-incompatible
+          - contact-id-invalid
+          - contact-is-primary-filter-invalid
+          - contact-is-primary-must-be-boolean
+          - contact-label-blank
+          - contact-label-must-be-string
+          - contact-label-too-long
+          - contact-mobile-number-required
+          - contact-not-found
+          - contact-page-limit-must-be-an-integer
+          - contact-page-limit-must-be-between-1-and-200
+          - contact-type-must-be-string
+          - contact-type-not-supported
+          - contact-type-required
+          - contact-value-already-exists
+          - contact-value-invalid
+          - contact-value-must-be-string
+          - contact-value-required
+          - contact-value-too-long
+          - dependency-unavailable
+          - idempotency-key-already-used-with-different-request
+          - idempotency-key-blank
+          - idempotency-key-duplicated
+          - idempotency-key-required
+          - idempotency-key-too-long
+          - if-match-duplicated
+          - if-match-invalid
+          - if-match-required
+          - process-id-invalid
+          - query-parameter-not-supported
+          - query-parameter-repeated
+          - request-body-contains-duplicate-fields
+          - request-body-contains-unknown-fields
+          - request-body-invalid-json
+          - request-body-must-be-object
+          - request-body-required
+          - server-error
+          - site-closed
+          - site-id-invalid
+          - site-mutation-not-allowed-for-archived-company
+          - site-not-found
           - tenant-id-invalid
           - unsupported-media-type
           - user-id-invalid

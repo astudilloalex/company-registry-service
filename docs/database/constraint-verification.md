@@ -208,8 +208,8 @@ PostgreSQL 18 with the same Podman environment:
 | --- | --- | --- |
 | `pk_company_site_contact_points` | Distinct IDs | Duplicate id |
 | `fk_company_site_contacts_site` | Existing Site | Unknown Site, delete referenced Site |
-| `ck_company_site_contacts_value` | `Mi.Usuario@example.com` preserved | Blank or untrimmed |
-| `ck_company_site_contacts_phone_format` | EMAIL unchanged; PHONE/MOBILE/WHATSAPP `+593999999999` | Missing +, zero prefix, nonnumeric, <2 or >15 digits for each phone type |
+| `ck_company_site_contacts_value` | `mi.usuario@example.com` canonical | Blank or untrimmed |
+| `ck_company_site_contacts_phone_format` | Canonical EMAIL; PHONE/MOBILE/WHATSAPP `+593999999999` | Missing +, zero prefix, nonnumeric, <2 or >15 digits for each phone type |
 | `ck_company_site_contacts_label` | NULL or canonical label | Blank, untrimmed or lowercase |
 | `ck_company_site_contacts_created_by` | Nonblank actor | Blank |
 | `ck_company_site_contacts_updated_by` | Nonblank actor | Blank |
@@ -382,3 +382,32 @@ and the valid/ready partial index `ix_company_site_addresses_page` with keys
 `uq_company_site_primary_address`. `SchemaCatalogIntegrityTest` and
 `SchemaDocumentationTest` compare the complete catalog and DBML declarations.
 Actual execution outcomes belong in the HU06 acceptance evidence.
+
+
+## V8 — Site contact acceptance, canonical EMAIL and pagination
+
+Authority: `V8__add_site_contact_management_support.sql`. V1–V7 remain byte-identical.
+`ck_company_site_contacts_email_v1` requires current EMAIL ASCII, lowercase,
+254/64 limits and dot-atom/domain syntax; deleted historical bytes are exempt.
+The preflight rejects incompatible current values and lowercase collisions with
+sanitized diagnostics, without altering contacts, audit, snapshots or events.
+`ContactIntegrityTest` shares syntax/length boundaries with Domain and exercises
+current uniqueness, historical reuse, E.164 and immutable identity protection.
+The former T00 expectation that current email case variants coexist is superseded.
+
+`ck_company_idempotency_site_contact_metadata` protects all three
+company.site.contact.{create,update,delete}.v1 namespaces on INSERT and UPDATE:
+owned Site, original nonnegative expected version, positive fingerprint policy,
+valid key ID, HTTP 201 for create and 200 for update/delete (including no-op).
+Existing hash/snapshot/compound ownership constraints remain authoritative.
+`SiteContactMetadataIntegrityTest` covers invalid metadata and page catalogue;
+`SiteContactMetadataMigrationTest` covers V7 upgrade, preserved six-table
+snapshots, incompatible inputs/collisions and acceptance provenance failures.
+
+`ix_company_site_contacts_page` is valid/ready over
+(site_id, created_at DESC, id DESC) WHERE deleted_at IS NULL.
+`uq_company_site_contacts_current_value` and `uq_company_site_primary_contact`
+continue to protect live value and explicit primary selection independently.
+Runtime/migrator separation and repeated Flyway.validate remain checked by
+`DatabaseStartupTest`; earlier isolated-schema migration fixtures retain their
+original uppercase examples to demonstrate historical contracts.

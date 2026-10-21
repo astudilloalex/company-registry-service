@@ -13,8 +13,8 @@ Normalize at the API input copy before Bean Validation; reuse the pure policy in
 | Address `addressLine2` | optional uppercase | ≤300; `ck_company_site_addresses_line2` |
 | Address `houseNumber`, `postalCode` | optional uppercase | ≤32; corresponding `ck_company_site_addresses_house_number`, `ck_company_site_addresses_postal_code` |
 | Contact `label` | optional uppercase | ≤80; `ck_company_site_contacts_label` |
-| Contact EMAIL `value` | `ContactValue`: outer strip, preserve entire mailbox case | ordinary unquoted mailbox with nonblank local/domain and dotted domain, ≤320, no whitespace/control; SQL checks trimmed/nonempty only |
-| Contact PHONE/MOBILE/WHATSAPP `value` | `ContactValue`: explicit `+` country calling code, libphonenumber validity, output E.164 | no locale/default country; no extensions, vanity strings or national-only numbers; `ck_company_site_contacts_phone_format` |
+| Contact EMAIL `value` | `ContactValue`: outer strip, ASCII validation, entire mailbox lowercase with `Locale.ROOT` | EMAIL V1: ASCII dot-atom local part ≤64, total ≤254, domain with at least two labels of 1–63 alphanumeric characters with interior hyphens; preserve dots and +aliases |
+| Contact PHONE/MOBILE/WHATSAPP `value` | `ContactValue`: explicit `+` country calling code, libphonenumber validity, output E.164 | ASCII digits, spaces, parentheses and hyphens; no locale/default country, extensions, vanity strings or national-only numbers; MOBILE requires MOBILE/FIXED_LINE_OR_MOBILE classification; `ck_company_site_contacts_phone_format` |
 | Company `logoUrl` | no uppercase or URL case rewriting; validate URL separately and require trimmed representation | ≤1000, null allowed; `ck_companies_logo_url` |
 | Tenant/Party/Company/Site UUIDs | typed UUID parsing, no text normalization | external IDs need not be UUIDv7; generated IDs do |
 | Actor, Process-Id, Idempotency-Key, correlation, causation, fingerprints, cryptographic material and external protocol values | preserve exact value; `OpaqueValue` checks presence/length only where applicable | boundary-specific syntax/length; never use `BusinessText` |
@@ -109,6 +109,52 @@ and Application dependencies, including deliberately invalid fixtures.
 
 Java performs canonicalization; PostgreSQL CHECKs verify the stored canonical output, not an independent normalization of raw request input. Java and PostgreSQL do not promise identical Unicode/collation behavior for every raw character. Tests verify canonical accented Spanish text, Ç, Turkish-locale independence and `straße`→`STRASSE`. PostgreSQL 18 must accept that canonical output under `upper(value) = value` and `btrim(value) = value`. Deployments must use a compatible UTF-8 database locale; do not use SQL `upper(rawInput)` as the request fingerprint algorithm.
 
-`BusinessTextTest` covers accents, spaces, optional nulls, blanks, locale independence, idempotence and expansion before length validation. `ContactValueTest` covers case-sensitive email/opaque inputs and valid/invalid/ambiguous numbers. `PostgresTextCompatibilityTest` checks actual PostgreSQL 18 uppercase/trim expressions. Full per-constraint migration coverage is tracked separately in section 5.
+`BusinessTextTest` covers accents, spaces, optional nulls, blanks, locale independence, idempotence and expansion before length validation. `ContactValueTest` covers lowercase ASCII email and exact opaque inputs and valid/invalid/ambiguous numbers. `PostgresTextCompatibilityTest` checks actual PostgreSQL 18 uppercase/trim expressions. Full per-constraint migration coverage is tracked separately in section 5.
 
 Telephone numbering metadata comes from pinned libphonenumber 9.0.41. It is a pure computation dependency allowed explicitly by the architecture rule; it does not add HTTP, Quarkus, persistence or Mutiny to Domain. Its resources must also be exercised by the later native verification suite.
+
+
+## Site contacts (HU07)
+
+EMAIL V1 deliberately replaces T00's case-preserving mailbox policy and HU07
+AC07's local-part preservation: ` Ventas@Example.COM ` becomes
+`ventas@example.com`. ASCII is checked before lowercase conversion, so `K`
+and accented letters cannot enter the profile through case folding. The local
+part uses RFC 5322 dot-atom-text; leading, trailing and consecutive dots,
+quoted mailboxes, display names, comments, lists and IP literals are rejected.
+Domain labels cannot begin or end with hyphens. No DNS or SMTP check occurs.
+Dots and `+alias` suffixes retain their meaning without provider-specific rules.
+The 254 total and 64 local ASCII character limits apply after outer strip.
+Historical storage width does not expand this public contract.
+
+PHONE/MOBILE/WHATSAPP require an explicit `+` and normalize formatting such as
+` +1 (202) 555-0123 ` to `+12025550123`, with at most 15 digits.
+Pinned libphonenumber 9.0.41 supplies validity and classification. MOBILE
+accepts MOBILE or FIXED_LINE_OR_MOBILE, including the ambiguous US example.
+An exclusively fixed UK number `+442079460018` is valid for PHONE and WHATSAPP
+but fails MOBILE with `contact-mobile-number-required`. Validity does not
+prove assignment, ownership or WhatsApp availability. No messages are sent.
+
+`ContactInformationPatch` retains independent presence. Only label accepts a
+null clear; supplied blank labels fail. Labels use strip and Locale.ROOT
+uppercase before the 80-code-point limit, including expansion (`ß` → `SS`).
+POST requires type/value, defaults label to null and primary to false.
+PATCH omission retains the previous value; compatible reclassification keeps
+identity and omitted primary selection. Effective canonical equality is a no-op.
+
+`ContactIntentPolicyV1` canonicalizes supplied fields in type/value/label/primary
+order. A supplied value uses a lexical EMAIL family when it contains `@`, or
+PHONE when it starts with `+` after strip. PHONE intent normalization does not
+apply MOBILE classification. Type presence remains independently signed;
+a value-only PATCH can replay without reading current contact state.
+Compatibility and MOBILE classification are checked against the effective
+combination only after ownership, revision and editability admission.
+
+`ContactPrimaryPolicy` chooses only the destination contact to demote before
+promotion. Each of the four types can have zero primaries. Explicit false
+leaves another primary untouched; reclassification never selects a replacement
+for the old category. Persistence and common audit belong to the use case.
+
+`ContactValueTest`, `ContactInformationPolicyTest`, `ContactIntentPolicyV1Test`
+and `ContactPrimaryPolicyTest` exercise these pure policies. `ArchitectureTest`
+checks that Domain remains independent of HTTP, JSON, persistence, CDI and Mutiny.
