@@ -96,7 +96,7 @@ class CompanyLifecycleHttpTest extends LifecycleHttpSupport {
                 "SELECT jsonb_agg(to_jsonb(a) ORDER BY id)::text FROM company_site_addresses a WHERE site_id='" + site
                         + "'");
         scalar("INSERT INTO company_site_contact_points(site_id,contact_type,value,created_by,updated_by) VALUES('"
-                + site + "','EMAIL','User@example.com','Creator-aB','Creator-aB') RETURNING id");
+                + site + "','EMAIL','user@example.com','Creator-aB','Creator-aB') RETURNING id");
         String originalContacts = scalar(
                 "SELECT jsonb_agg(to_jsonb(c) ORDER BY id)::text FROM company_site_contact_points c WHERE site_id='"
                         + site + "'");
