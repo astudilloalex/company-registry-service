@@ -84,7 +84,7 @@ class CompanyLifecycleMetadataMigrationTest extends SqlIntegritySupport {
         assertEquals("6", scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema='company_lifecycle_upgrade' AND table_type='BASE TABLE'"));
         assertEquals("1", scalar("SELECT count(*) FROM pg_constraint WHERE conname='ck_company_idempotency_lifecycle_metadata' "
                 + "AND connamespace='company_lifecycle_upgrade'::regnamespace AND convalidated"));
-        assertEquals("7", flyway.info().current().getVersion().getVersion());
+        assertEquals("8", flyway.info().current().getVersion().getVersion());
         flyway.validate();
     }
 
