@@ -25,7 +25,9 @@ public final class OpenApiAssertions {
                 "/v1/companies/{companyId}/activate", "/v1/companies/{companyId}/deactivate",
                 "/v1/companies/{companyId}/archive",
                 "/v1/companies/{companyId}/sites/{siteId}/addresses",
-                "/v1/companies/{companyId}/sites/{siteId}/addresses/{addressId}"), actual.getPaths().keySet());
+                "/v1/companies/{companyId}/sites/{siteId}/addresses/{addressId}",
+                "/v1/companies/{companyId}/sites/{siteId}/contacts",
+                "/v1/companies/{companyId}/sites/{siteId}/contacts/{contactId}"), actual.getPaths().keySet());
         var site = actual.getComponents().getSchemas().get("SiteResponse");
         assertEquals(12, site.getRequired().size());
         assertEquals(Set.of("siteId", "companyId", "code", "name", "siteType", "status", "version", "effectivelyOperational",
