@@ -5,8 +5,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @QuarkusTest
 @TestProfile(ContactHttpProfile.class)
@@ -91,6 +95,38 @@ class ContactHttpTest extends ContactHttpSupport {
         var other = fixture();
         request().queryParam("cursor", cursor).get(other.path()).then().statusCode(400)
                 .body("code", equalTo("contact-cursor-invalid-or-incompatible"));
+    }
+
+    @ParameterizedTest(name = "live contact remains readable: archivedCompany={0}")
+    @ValueSource(booleans = {false, true})
+    void liveDetailAndListRemainReadableAfterSiteClosureOrCompanyArchival(boolean archiveCompany) throws Exception {
+        var f = fixture();
+        String creationKey = "terminal-read-" + f.site();
+        var created = mutation(0, creationKey).body(MINIMUM).post(f.path()).then().statusCode(201)
+                .extract().jsonPath().getMap("data");
+        String detail = f.path() + "/" + created.get("contactId");
+        String terminalKey = "terminal-parent-" + f.company();
+        if (archiveCompany) {
+            mutation(0, terminalKey).body("{}").post("/v1/companies/" + f.company() + "/archive")
+                    .then().statusCode(200).body("data.status", equalTo("ARCHIVED"));
+        } else {
+            mutation(1, terminalKey).body("{}").post(f.path().replace("/contacts", "/close"))
+                    .then().statusCode(200).body("data.status", equalTo("CLOSED"));
+        }
+        int currentSiteVersion = archiveCompany ? 1 : 2;
+        var current = new HashMap<>(created);
+        current.put("siteVersion", currentSiteVersion);
+        request().get(detail).then().statusCode(200).header("Process-Id", process)
+                .body("data", equalTo(current));
+        request().get(f.path()).then().statusCode(200).header("Process-Id", process)
+                .body("numberOfElements", equalTo(1), "data", equalTo(List.of(current)), "nextCursor", nullValue());
+        mutation(currentSiteVersion, null).body("{}").patch(detail).then().statusCode(409)
+                .body("code", equalTo(archiveCompany ? "site-mutation-not-allowed-for-archived-company" : "site-closed"));
+        mutation(0, creationKey).body(MINIMUM).post(f.path()).then().statusCode(201)
+                .body("data", equalTo(created));
+        assertEquals(currentSiteVersion, scalar("SELECT version FROM company_sites WHERE id='" + f.site() + "'"));
+        assertEquals(1, scalar("SELECT count(*) FROM company_site_contact_points WHERE site_id='" + f.site()
+                + "' AND deleted_at IS NULL"));
     }
 
     @Test
