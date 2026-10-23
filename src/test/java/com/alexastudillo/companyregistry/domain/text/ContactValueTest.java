@@ -9,13 +9,49 @@ import org.junit.jupiter.api.Test;
 
 class ContactValueTest {
     @Test
-    void preservesEmailCaseAndTrimsOnlyExteriorWhitespace() {
-        assertEquals("Mi.Usuario@Example.com", ContactValue.normalize(ContactType.EMAIL, " Mi.Usuario@Example.com "));
+    void lowercasesEmailAndTrimsOnlyExteriorWhitespace() {
+        assertEquals("mi.usuario@example.com", ContactValue.normalize(ContactType.EMAIL, " Mi.Usuario@Example.com "));
         assertEquals("user@sub.domain.example.com", ContactValue.normalize(ContactType.EMAIL, "user@sub.domain.example.com"));
         for (String invalid : new String[] {"a", "a@@example.com", "a b@example.com", "a@b", "", "a\n@example.com",
                 "user@.com", "user@example."}) {
             assertThrows(InvalidText.class, () -> ContactValue.normalize(ContactType.EMAIL, invalid));
         }
+    }
+
+    @Test
+    void preservesAliasesAndRejectsNonAsciiAndInvalidComponents() {
+        assertEquals("a.b+alias@example.com", ContactValue.normalize(ContactType.EMAIL, " A.B+Alias@Example.COM "));
+        for (String invalid : new String[] {"josé@example.com", "K@example.com", "a..b@example.com",
+                ".a@example.com", "a.@example.com", "a@example..com", "a@-example.com", "a@example-.com",
+                "a@localhost", "a@[127.0.0.1]", "\"a\"@example.com", "A <a@example.com>",
+                "a(comment)@example.com", "a@example.com,b@example.com", "a@" + "b".repeat(64) + ".com"}) {
+            assertThrows(InvalidText.class, () -> ContactValue.normalize(ContactType.EMAIL, invalid), invalid);
+        }
+    }
+
+    @Test
+    void enforcesCanonicalMailboxAndLocalLengthBoundaries() {
+        String local64 = "a".repeat(64);
+        String domain = "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
+        String maximum = local64 + "@" + domain;
+        assertEquals(254, maximum.length());
+        assertEquals(maximum, ContactValue.normalize(ContactType.EMAIL, " " + maximum + " "));
+        String overTotal = maximum + "d";
+        String overLocal = local64 + "a@example.com";
+        var totalFailure = assertThrows(InvalidText.class, () -> ContactValue.normalize(ContactType.EMAIL, overTotal));
+        var localFailure = assertThrows(InvalidText.class, () -> ContactValue.normalize(ContactType.EMAIL, overLocal));
+        assertEquals("contact-value-too-long", totalFailure.getMessage());
+        assertEquals("contact-value-too-long", localFailure.getMessage());
+    }
+
+    @Test
+    void requiresMobileClassificationOnlyForMobileChannel() {
+        String fixed = "+442079460018";
+        assertEquals(fixed, ContactValue.normalize(ContactType.PHONE, fixed));
+        assertEquals(fixed, ContactValue.normalize(ContactType.WHATSAPP, fixed));
+        var failure = assertThrows(InvalidText.class, () -> ContactValue.normalize(ContactType.MOBILE, fixed));
+        assertEquals("contact-mobile-number-required", failure.getMessage());
+        assertEquals("+447911123456", ContactValue.normalize(ContactType.MOBILE, "+44 7911 123456"));
     }
 
     @Test

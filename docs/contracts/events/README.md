@@ -90,3 +90,11 @@ unchanged across later aggregate changes, mode changes and at-least-once redeliv
 HU08 must deliver the stored fact; there is no global ordering or exactly-once promise.
 The child example shows a later Site revision whose basic fields stay unchanged;
 HU06/HU07 details require a qualified query and do not enter this payload.
+
+HU07 contact creation, effective PATCH and logical deletion reuse
+`company.site.updated.v1`. A joint primary replacement still emits one event at
+the resulting shared Site revision. Its closed payload has exactly `siteId`,
+`companyId`, `code`, `name`, `siteType`, `status`, `updatedAt`, `updatedBy`.
+No contactId, label, email or telephone is included. No-op/replay emit none.
+Disabled mode omits storage; stored-only/published store PENDING atomically
+without requiring a broker or publishing as part of contact acceptance.

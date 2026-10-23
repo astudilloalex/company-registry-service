@@ -337,3 +337,30 @@ Unknown finalization returns unavailable without starting recovery or another
 mutation. Finalized failures can look up an existing acceptance once; writes
 are never automatically reexecuted. Other Site writers must use the same
 Company-before-Site protocol and shared revision, including other child writers.
+
+## HU07 contact acceptances
+
+`company.site.contact.create.v1`, `company.site.contact.update.v1` and
+`company.site.contact.delete.v1` are independent tenant/operation/key namespaces.
+POST requires a key; PATCH/DELETE accept omission. Fingerprint policy 1 uses
+HMAC-SHA256 and canonical UTF-8 field order; EMAIL ASCII/lowercase and generic
+PHONE family are independent of stored type. PATCH signs independent presence
+and lexical family, so value-only replay never reads current contact state.
+Policy 1 pins libphonenumber and its metadata at 9.0.41; a future update must
+retain historical behavior/material or prove equivalence. Missing keys/policies
+fail closed without substituting active material.
+
+ContactResultCodec format 1 preserves internal scope and View or minimal
+Deletion, including nullable label, original revision and audit. CREATE requires
+UUIDv7 and expected+1; DELETE requires expected+1; UPDATE accepts expected for
+no-op or expected+1, with explicit overflow protection. UPDATE/DELETE accept
+historical UUID identity. Historical E.164 results are checked structurally
+without current allocation/classification lookup. No current-row reconstruction
+is permitted. HU01–HU06 codecs/fingerprints retain their own persisted formats.
+
+V8 adds metadata checks and current EMAIL integrity without rewriting V1–V7,
+business rows, snapshots or events. Retain accepted records, format/policy 1,
+numbering metadata and original keys without a TTL that permits reacceptance.
+Rollback preserves migration/history/revisions/outbox; restore compatible code
+or suspend HU07 routes. Never restore deleted rows or revert EMAIL policy by
+editing applied migrations. See the contact contract and tests for K1→K2 replay.

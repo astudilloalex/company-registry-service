@@ -64,7 +64,7 @@ class SiteCreationMetadataMigrationTest extends SqlIntegritySupport {
         assertEquals("0", scalar("SELECT (result_snapshot->>'version') FROM company_idempotency_records WHERE operation='company.update.v1'"));
         assertEquals(event, scalar("SELECT row_to_json(c)::text FROM company_outbox_events c"));
         assertEquals("6", scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema='site_upgrade' AND table_type='BASE TABLE'"));
-        assertEquals("7", flyway.info().current().getVersion().getVersion());
+        assertEquals("8", flyway.info().current().getVersion().getVersion());
         assertEquals("-272976494", scalar("SELECT checksum::text FROM public.flyway_schema_history WHERE version='1'"));
     }
 }

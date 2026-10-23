@@ -1,6 +1,6 @@
 # Planned business operations and shared conventions
 
-The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01/HU02/HU03/HU04/HU05/HU06 operations:
+The source [OpenAPI](company-registry.openapi.yaml) publishes the implemented HU01/HU02/HU03/HU04/HU05/HU06/HU07 operations:
 `POST /v1/companies`, `GET /v1/companies/{companyId}`, `GET /v1/companies` and
 `PATCH /v1/companies/{companyId}`, `POST /v1/companies/{companyId}/sites`,
 `GET /v1/companies/{companyId}/sites/{siteId}` and `GET /v1/companies/{companyId}/sites`.
@@ -82,3 +82,11 @@ unexpected definition/I/O failures. The library creates the final error envelope
 Bean Validation preserves stable field codes under `validation-error`; unexpected
 failures are sanitized `server-error`. See
 [HTTP evidence](../architecture/http-foundation-verification.md).
+
+HU07 Site contact management is implemented at
+`/v1/companies/{companyId}/sites/{siteId}/contacts` (POST/GET) and
+`/{contactId}` (GET/PATCH/DELETE). See [contact contract](company-site-contact-management.md)
+for EMAIL V1, explicit primary replacement, shared revision, cursor reads and
+original durable replay. EMAIL full lowercase/ASCII supersedes HU07 AC07's
+local-part case-preservation expectation. Channel availability verification and
+message delivery remain outside this contract.

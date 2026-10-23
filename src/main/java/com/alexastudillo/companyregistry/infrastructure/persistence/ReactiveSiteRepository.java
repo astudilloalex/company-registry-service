@@ -7,6 +7,10 @@ import com.alexastudillo.companyregistry.application.site.AddressMutation;
 import com.alexastudillo.companyregistry.application.site.AddressScope;
 import com.alexastudillo.companyregistry.application.site.AddressSelection;
 import com.alexastudillo.companyregistry.domain.model.AddressType;
+import com.alexastudillo.companyregistry.domain.model.ContactType;
+import com.alexastudillo.companyregistry.application.site.ContactMutation;
+import com.alexastudillo.companyregistry.application.site.ContactScope;
+import com.alexastudillo.companyregistry.application.site.ContactSelection;
 import io.quarkus.hibernate.reactive.panache.PanacheRepositoryBase;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
@@ -24,6 +28,14 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
     private static final String PARAM_SITE = "site";
     private static final String PARAM_ADDRESS = "address";
     private static final String PARAM_TYPE = "type";
+    private static final String PARAM_CONTACT = "contact";
+    private static final String PARAM_CREATED = "created";
+    private static final String PARAM_PRIMARY = "primary";
+    private static final String PARAM_ACTOR = "actor";
+    private static final String PARAM_AT = "at";
+    private static final String CONTACTS = "select a, s.version from ContactEntity a, SiteEntity s, CompanyEntity c "
+            + "where a.siteId = s.id and c.id = s.companyId and c.tenantId = s.tenantId "
+            + "and s.tenantId = :tenant and s.companyId = :company and s.id = :site and a.deletedAt is null";
     private static final String ADDRESSES = "select a, s.version from AddressEntity a, SiteEntity s, CompanyEntity c "
             + "where a.siteId = s.id and c.id = s.companyId and c.tenantId = s.tenantId "
             + "and s.tenantId = :tenant and s.companyId = :company and s.id = :site and a.deletedAt is null";
@@ -47,11 +59,11 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
             hql.append(" and a.type = :type"); parameters.put(PARAM_TYPE, filters.addressType());
         }
         if (filters.isPrimary() != null) {
-            hql.append(" and a.primaryValue = :primary"); parameters.put("primary", filters.isPrimary());
+            hql.append(" and a.primaryValue = :primary"); parameters.put(PARAM_PRIMARY, filters.isPrimary());
         }
         if (boundary != null) {
             hql.append(" and (a.createdAt < :created or (a.createdAt = :created and a.id < :address))");
-            parameters.put("created", boundary.createdAt()); parameters.put(PARAM_ADDRESS, boundary.addressId());
+            parameters.put(PARAM_CREATED, boundary.createdAt()); parameters.put(PARAM_ADDRESS, boundary.addressId());
         }
         hql.append(" order by a.createdAt desc, a.id desc");
         return Panache.getSession().chain(session -> {
@@ -78,8 +90,8 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
         parameters.put("line1", row.line1()); parameters.put("line2", row.line2());
         parameters.put("house", row.houseNumber()); parameters.put("postal", row.postalCode());
         parameters.put("latitude", row.latitude()); parameters.put("longitude", row.longitude());
-        parameters.put("primary", row.primary()); parameters.put("at", row.audit().updatedAt());
-        parameters.put("actor", row.audit().updatedBy()); parameters.put("deletedAt", row.deletedAt());
+        parameters.put(PARAM_PRIMARY, row.primary()); parameters.put(PARAM_AT, row.audit().updatedAt());
+        parameters.put(PARAM_ACTOR, row.audit().updatedBy()); parameters.put("deletedAt", row.deletedAt());
         parameters.put("deletedBy", row.deletedBy());
         return Panache.getSession().chain(session -> {
             var query = session.createMutationQuery("update AddressEntity a set type=:type, countryCode=:country, "
@@ -104,6 +116,94 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
 
     private static AddressMutation.View addressView(AddressScope scope, Object[] row) {
         return new AddressMutation.View(scope, ((AddressEntity) row[0]).value(), ((Number) row[1]).longValue());
+    }
+
+    @Override
+    public Uni<ContactMutation.View> contactDetail(ContactScope scope, UUID contactId) {
+        return Panache.getSession().chain(session -> {
+            var query = session.createQuery(CONTACTS + " and a.id = :contact", Object[].class);
+            contactParameters(scope).forEach(query::setParameter);
+            return query.setParameter(PARAM_CONTACT, contactId).getSingleResultOrNull();
+        }).map(row -> row == null ? null : contactView(scope, row));
+    }
+
+    @Override
+    public Uni<List<ContactMutation.View>> contactPage(ContactScope scope, ContactSelection.Filters filters,
+            ContactSelection.Boundary boundary, int limit) {
+        if (limit < 1 || limit > 200) throw new IllegalArgumentException("contact-page-limit-invalid");
+        var hql = new StringBuilder(CONTACTS);
+        var parameters = contactParameters(scope);
+        if (filters.contactType() != null) {
+            hql.append(" and a.type = :type"); parameters.put(PARAM_TYPE, filters.contactType());
+        }
+        if (filters.isPrimary() != null) {
+            hql.append(" and a.primaryValue = :primary"); parameters.put(PARAM_PRIMARY, filters.isPrimary());
+        }
+        if (boundary != null) {
+            hql.append(" and (a.createdAt < :created or (a.createdAt = :created and a.id < :contact))");
+            parameters.put(PARAM_CREATED, boundary.createdAt()); parameters.put(PARAM_CONTACT, boundary.contactId());
+        }
+        hql.append(" order by a.createdAt desc, a.id desc");
+        return Panache.getSession().chain(session -> {
+            var query = session.createQuery(hql.toString(), Object[].class);
+            parameters.forEach(query::setParameter);
+            return query.setMaxResults(limit + 1).getResultList();
+        }).map(rows -> rows.stream().map(row -> contactView(scope, row)).toList());
+    }
+
+    @Override
+    public Uni<ContactRecord> primaryContact(ContactScope scope, ContactType type) {
+        return contactPage(scope, new ContactSelection.Filters(type, true), null, 1).map(rows -> {
+            if (rows.size() > 1) throw new IllegalStateException("contact-primary-integrity-invalid");
+            return rows.isEmpty() ? null : rows.getFirst().contact();
+        });
+    }
+
+    @Override
+    public Uni<ContactRecord> updateContact(ContactScope scope, ContactRecord row) {
+        if (!scope.siteId().equals(row.siteId())) throw new IllegalArgumentException("contact-site-mismatch");
+        var parameters = contactParameters(scope);
+        parameters.put(PARAM_CONTACT, row.id()); parameters.put(PARAM_TYPE, row.type());
+        parameters.put("value", row.value()); parameters.put("label", row.label());
+        parameters.put(PARAM_PRIMARY, row.primary()); parameters.put(PARAM_AT, row.audit().updatedAt());
+        parameters.put(PARAM_ACTOR, row.audit().updatedBy()); parameters.put("deletedAt", row.deletedAt());
+        parameters.put("deletedBy", row.deletedBy());
+        return Panache.getSession().chain(session -> {
+            var query = session.createMutationQuery("update ContactEntity a set type=:type, value=:value, label=:label, "
+                    + "primaryValue=:primary, updatedAt=:at, updatedBy=:actor, deletedAt=:deletedAt, deletedBy=:deletedBy "
+                    + "where a.id=:contact and a.siteId=:site and a.deletedAt is null "
+                    + "and exists (select 1 from SiteEntity s, CompanyEntity c where s.id=a.siteId "
+                    + "and s.tenantId=:tenant and s.companyId=:company and c.id=s.companyId and c.tenantId=s.tenantId)");
+            parameters.forEach(query::setParameter);
+            return query.executeUpdate();
+        }).chain(count -> count == 1 ? Uni.createFrom().item(row)
+                : Uni.createFrom().failure(new PersistenceFailure(PersistenceFailure.Kind.INVALID_REFERENCE, null)));
+    }
+
+    private static java.util.HashMap<String, Object> contactParameters(ContactScope scope) {
+        var parameters = new java.util.HashMap<String, Object>();
+        parameters.put(PARAM_TENANT, scope.tenantId());
+        parameters.put(PARAM_COMPANY, scope.companyId());
+        parameters.put(PARAM_SITE, scope.siteId());
+        return parameters;
+    }
+
+    private static ContactMutation.View contactView(ContactScope scope, Object[] row) {
+        return new ContactMutation.View(scope, ((ContactEntity) row[0]).contactRecord(), ((Number) row[1]).longValue());
+    }
+
+    @Override
+    public Uni<Boolean> contactValueOccupiedByOther(ContactScope scope, ContactType type, String value, UUID excludedContactId) {
+        var parameters = contactParameters(scope);
+        parameters.put(PARAM_TYPE, type);
+        parameters.put("value", value);
+        String exclusion = excludedContactId == null ? "" : " and a.id <> :contact";
+        if (excludedContactId != null) parameters.put(PARAM_CONTACT, excludedContactId);
+        return Panache.getSession().chain(session -> {
+            var query = session.createQuery(CONTACTS + " and a.type=:type and a.value=:value" + exclusion, Object[].class);
+            parameters.forEach(query::setParameter);
+            return query.setMaxResults(1).getResultList();
+        }).map(rows -> !rows.isEmpty());
     }
 
     @Override
@@ -135,7 +235,7 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
         if (filters.status() != null) { hql.append(" and s.status = :status"); parameters.put("status", filters.status()); }
         if (boundary != null) {
             hql.append(" and (s.createdAt < :created or (s.createdAt = :created and s.id < :id))");
-            parameters.put("created", boundary.createdAt()); parameters.put("id", boundary.id());
+            parameters.put(PARAM_CREATED, boundary.createdAt()); parameters.put("id", boundary.id());
         }
         hql.append(" order by s.createdAt desc, s.id desc");
         return Panache.getSession().chain(session -> {
@@ -186,8 +286,8 @@ public class ReactiveSiteRepository implements SiteRepository, PanacheRepository
         parameters.put("name", row.name());
         parameters.put(PARAM_TYPE, row.site().type());
         parameters.put("status", row.site().status());
-        parameters.put("at", row.audit().updatedAt());
-        parameters.put("actor", row.audit().updatedBy());
+        parameters.put(PARAM_AT, row.audit().updatedAt());
+        parameters.put(PARAM_ACTOR, row.audit().updatedBy());
         return update("code=:code, name=:name, type=:type, status=:status, updatedAt=:at, updatedBy=:actor, "
                 + "version=version+1 where tenantId=:tenant and companyId=:company and id=:site and version=:expected", parameters)
                 .chain(count -> count == 1 ? Uni.createFrom().item(row)

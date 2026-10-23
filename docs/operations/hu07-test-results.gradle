@@ -1,0 +1,9 @@
+// Preserve each JVM, packaged and native verification stage independently.
+allprojects { project ->
+    def run = project.providers.gradleProperty("hu07EvidenceRun").orElse("jvm").get()
+    project.tasks.withType(org.gradle.api.tasks.testing.Test).configureEach { task ->
+        task.binaryResultsDirectory.set(project.layout.buildDirectory.dir("hu07-evidence/${run}/results/${task.name}/binary"))
+        task.reports.junitXml.outputLocation.set(project.layout.buildDirectory.dir("hu07-evidence/${run}/results/${task.name}/xml"))
+        task.reports.html.outputLocation.set(project.layout.buildDirectory.dir("hu07-evidence/${run}/results/${task.name}/html"))
+    }
+}

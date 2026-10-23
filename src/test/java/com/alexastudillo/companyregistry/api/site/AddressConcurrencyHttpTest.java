@@ -138,7 +138,7 @@ class AddressConcurrencyHttpTest extends AddressHttpSupport {
             statement.execute(
                     "INSERT INTO company_site_contact_points(site_id,contact_type,value,created_by,updated_by,created_at,updated_at) VALUES('"
                             + child.site()
-                            + "','EMAIL','Case@example.com','OtherChild','OtherChild',transaction_timestamp(),transaction_timestamp())");
+                            + "','EMAIL','case@example.com','OtherChild','OtherChild',transaction_timestamp(),transaction_timestamp())");
             statement.execute(
                     "UPDATE company_sites SET version=version+1,updated_by='OtherChild',updated_at=transaction_timestamp() WHERE id='"
                             + child.site() + "'");

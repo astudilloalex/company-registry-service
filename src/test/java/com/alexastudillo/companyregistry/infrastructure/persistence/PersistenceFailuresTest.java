@@ -69,6 +69,8 @@ class PersistenceFailuresTest {
         for (var pair : new Object[][] {
                 {"uq_company_sites_code", PersistenceFailure.Uniqueness.SITE_CODE},
                 {"uq_company_sites_open_headquarters", PersistenceFailure.Uniqueness.SITE_HEADQUARTERS},
+                {"uq_company_site_contacts_current_value", PersistenceFailure.Uniqueness.CONTACT_VALUE},
+                {"uq_company_site_primary_contact", PersistenceFailure.Uniqueness.OTHER},
                 {"pk_company_idempotency_records", PersistenceFailure.Uniqueness.COMPLETION_KEY},
                 {"uq_company_outbox_event", PersistenceFailure.Uniqueness.OTHER}}) {
             var cause = new org.hibernate.exception.ConstraintViolationException("duplicate",

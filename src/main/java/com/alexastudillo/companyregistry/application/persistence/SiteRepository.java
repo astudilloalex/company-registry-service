@@ -37,6 +37,19 @@ public interface SiteRepository {
             com.alexastudillo.companyregistry.domain.model.AddressType type);
     /** Qualified bulk update; immutable identity and creation audit remain untouched. */
     Uni<AddressRecord> updateAddress(com.alexastudillo.companyregistry.application.site.AddressScope scope, AddressRecord address);
+    Uni<com.alexastudillo.companyregistry.application.site.ContactMutation.View> contactDetail(
+            com.alexastudillo.companyregistry.application.site.ContactScope scope, UUID contactId);
+    Uni<List<com.alexastudillo.companyregistry.application.site.ContactMutation.View>> contactPage(
+            com.alexastudillo.companyregistry.application.site.ContactScope scope,
+            com.alexastudillo.companyregistry.application.site.ContactSelection.Filters filters,
+            com.alexastudillo.companyregistry.application.site.ContactSelection.Boundary boundary, int limit);
+    /** Called only after the qualified Company/Site locks, within the same acceptance. */
+    Uni<ContactRecord> primaryContact(com.alexastudillo.companyregistry.application.site.ContactScope scope,
+            com.alexastudillo.companyregistry.domain.model.ContactType type);
+    /** Qualified bulk update; immutable identity and creation audit remain untouched. */
+    Uni<ContactRecord> updateContact(com.alexastudillo.companyregistry.application.site.ContactScope scope, ContactRecord contact);
+    Uni<Boolean> contactValueOccupiedByOther(com.alexastudillo.companyregistry.application.site.ContactScope scope,
+            com.alexastudillo.companyregistry.domain.model.ContactType type, String value, UUID excludedContactId);
     Uni<ContactRecord> insertContact(UUID tenantId, UUID companyId, ContactRecord contact);
     Uni<List<AddressRecord>> addresses(UUID tenantId, UUID companyId, UUID siteId);
     Uni<List<ContactRecord>> contacts(UUID tenantId, UUID companyId, UUID siteId);

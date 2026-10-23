@@ -76,6 +76,7 @@ final class PersistenceFailures {
             case "uq_companies_tenant_party" -> Uniqueness.COMPANY_PARTY;
             case "uq_company_sites_code" -> Uniqueness.SITE_CODE;
             case "uq_company_sites_open_headquarters" -> Uniqueness.SITE_HEADQUARTERS;
+            case "uq_company_site_contacts_current_value" -> Uniqueness.CONTACT_VALUE;
             case "pk_company_idempotency_records" -> Uniqueness.COMPLETION_KEY;
             default -> Uniqueness.OTHER;
         };

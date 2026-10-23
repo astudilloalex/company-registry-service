@@ -309,3 +309,10 @@ keys and completions without TTL across rotations, restarts and rollback.
 See `docs/architecture/persistence-contract.md` for signed intent, snapshots,
 cursors, coordination and retention. JVM verification does not establish native
 execution; native outcomes are recorded separately in the operations evidence.
+
+HU07 [Site contacts](docs/contracts/company-site-contact-management.md) implement
+POST/list/detail/PATCH/DELETE under each Site with shared If-Match, explicit
+primaries, canonical uniqueness, logical deletion and durable replay. EMAIL V1
+is ASCII and fully lowercase, replacing the earlier local-case preservation
+contract. `COMPANY_SITE_CONTACT_WAIT_BUDGET` defaults to `10s` and is validated
+at startup. See the published OpenAPI for examples and descriptive errors.

@@ -135,11 +135,12 @@ Table company_site_contact_points {
   deleted_at timestamptz
   deleted_by varchar(128)
   indexes {
+    (site_id, created_at, id) [name: 'ix_company_site_contacts_page', note: 'V8 PARTIAL: deleted_at IS NULL; created_at DESC, id DESC']
     id [pk, name: 'pk_company_site_contact_points']
-    (site_id, contact_type, value) [unique, name: 'uq_company_site_contacts_current_value', note: 'PARTIAL: deleted_at IS NULL; exact case-sensitive comparison']
+    (site_id, contact_type, value) [unique, name: 'uq_company_site_contacts_current_value', note: 'PARTIAL: deleted_at IS NULL; canonical value; EMAIL lowercase ASCII V1']
     (site_id, contact_type) [unique, name: 'uq_company_site_primary_contact', note: 'PARTIAL: is_primary = true AND deleted_at IS NULL']
   }
-  Note: 'Trimmed nonblank value; EMAIL case preserved, other types match ^[+][1-9][0-9]{1,14}$. Label canonical uppercase. Coherent audit/deletion as Address. trg_company_site_contacts_immutable protects id/site_id/created_at/by. Tenant/Company scope via Site.'
+  Note: 'V8 ck_company_site_contacts_email_v1: current EMAIL lowercase ASCII dot-atom ≤254 total/64 local, domain ≥2 labels ≤63; deleted historical EMAIL exempt. Trimmed nonblank value; other types match ^[+][1-9][0-9]{1,14}$. Label canonical uppercase. Coherent audit/deletion as Address. trg_company_site_contacts_immutable protects id/site_id/created_at/by. Tenant/Company scope via Site.'
 }
 
 Table company_idempotency_records {
@@ -161,7 +162,7 @@ Table company_idempotency_records {
     (tenant_id, operation, idempotency_key) [pk, name: 'pk_company_idempotency_records']
     (tenant_id, company_id, site_id) [name: 'ix_company_idempotency_owner']
   }
-  Note: 'Nonblank operation/key/actor; hash ^[0-9a-f]{64}$; expected version NULL or >=0; HTTP 200..299; snapshot version >0 and JSON object. Nullable site_id allows Company-only completion (default FK MATCH SIMPLE). V3 ck_company_idempotency_update_metadata requires update provenance, nonnegative expected version, HTTP 200 and null Site. Company creation retains HTTP 201 and null Site/precondition. V4 ck_company_idempotency_site_creation_metadata requires owned Site, null expected version, HTTP 201 and provenance. V5 ck_company_idempotency_site_mutation_metadata requires owned Site, nonnegative expected version, HTTP 200 and provenance for company.site.{update,activate,deactivate,close}.v1. V6 ck_company_idempotency_lifecycle_metadata requires null Site, nonnegative expected version, HTTP 200 and provenance for company.{activate,deactivate,archive}.v1. V7 ck_company_idempotency_site_address_metadata requires owned Site, nonnegative original expected version, provenance and HTTP 201 for company.site.address.create.v1 or 200 for update/delete. Snapshot is original response, not current aggregate state.'
+  Note: 'Nonblank operation/key/actor; hash ^[0-9a-f]{64}$; expected version NULL or >=0; HTTP 200..299; snapshot version >0 and JSON object. Nullable site_id allows Company-only completion (default FK MATCH SIMPLE). V3 ck_company_idempotency_update_metadata requires update provenance, nonnegative expected version, HTTP 200 and null Site. Company creation retains HTTP 201 and null Site/precondition. V4 ck_company_idempotency_site_creation_metadata requires owned Site, null expected version, HTTP 201 and provenance. V5 ck_company_idempotency_site_mutation_metadata requires owned Site, nonnegative expected version, HTTP 200 and provenance for company.site.{update,activate,deactivate,close}.v1. V6 ck_company_idempotency_lifecycle_metadata requires null Site, nonnegative expected version, HTTP 200 and provenance for company.{activate,deactivate,archive}.v1. V7 ck_company_idempotency_site_address_metadata requires owned Site, nonnegative original expected version, provenance and HTTP 201 for company.site.address.create.v1 or 200 for update/delete. V8 ck_company_idempotency_site_contact_metadata enforces owned Site, nonnegative expected version, provenance and HTTP 201 for contact create or 200 for update/delete. Snapshot is original response, not current aggregate state.'
 }
 
 Table company_outbox_events {

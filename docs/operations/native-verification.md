@@ -617,3 +617,56 @@ the separate verification JVM artifact passed its four cases. Native execution
 above is recorded independently of those JVM results. Exhaustive race/rollback
 matrices remain JVM/PostgreSQL evidence; no OCI rebuild or broker publication
 is claimed by this follow-up.
+
+
+## HU07 productive native verification (2026-10-18)
+
+The HU07 productive ELF was built with Podman 5.4.2 and Mandrel
+25.0.4.1-Final / native-image 25.0.4.1, using
+`quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25`, digest
+`sha256:50ce63f80dabf588d0e3c43857ae9d1a981d78a3e9ff42579965be23d47254c7`.
+The build passed in 7m48s; native-image generated the executable in 7m18s.
+Peak RSS was 4.62GB with the documented 5g heap and two compilation threads.
+The build log is `build/hu07-evidence/native-build.log`; actual builder version
+is retained in `build/hu07-evidence/native-builder.txt`.
+
+```shell
+export DOCKER_HOST=unix:///run/user/1000/podman/podman.sock
+export TESTCONTAINERS_RYUK_DISABLED=true
+export QUARKUS_HTTP_TEST_PORT=0
+./gradlew --offline quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+./gradlew --offline -I docs/operations/hu07-test-results.gradle -Phu07EvidenceRun=native-process quarkusIntTest -x quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Dquarkus.native.container-build=true -Dquarkus.native.container-runtime=podman -Dquarkus.native.native-image-xmx=5g '-Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2'
+```
+
+The productive artifact is
+`build/company-registry-service-1.0.0-SNAPSHOT-runner`: stripped x86-64 Linux
+ELF, 112667704 bytes, SHA-256
+`b97a6a8b22c3501e3ab37d0a3017a6a4472ac5e0e89a2d2dcbd77de1ea4db87f`.
+A preserved executable copy is
+`build/hu07-evidence/artifacts/productive-native-runner`; machine-readable
+identity is `build/hu07-evidence/native-artifact.json`. Final source hashes
+are retained in `build/hu07-evidence/source-sha256.json`.
+
+The actual native process suite passed in 1m3s: 17 productive cases executed,
+zero failures/errors. Four verification-only cases were intentionally skipped
+for the productive binary; those four passed separately in the verification JVM
+artifact. Reports are in `build/hu07-evidence/native-process/results/quarkusIntTest/`
+and the log is `build/hu07-evidence/native-process.log`.
+
+`PackagedContactIT` passed all four cases against this native ELF. It exercised
+the five contact routes, full lowercase/ASCII EMAIL, ambiguous mobile and fixed
+classification, E.164 formatting, value-only PATCH, reclassification, no-op,
+minimal DELETE, current reads/cursor continuation and original accepted results.
+Separate native restarts retained K1 while activating K2, replayed after contact
+removal and closed/archived parents, and operated with Party/Geography URLs set
+to an inaccessible port. All three outbox modes were checked against the closed
+Site event schema: disabled omitted rows, stored-only/published retained PENDING
+with zero publish attempts and exactly the eight Site fields, without contact
+PII. Zero/negative/overflow budgets aborted native startup. Published OpenAPI
+matched source and production verification routes returned 404.
+
+Retained productive HU01–HU06 process cases also passed. Exhaustive races,
+rollback injection, invalid-input precedence and historical corruption matrices
+are JVM/PostgreSQL evidence; this native process run establishes the concrete
+coverage above. No separate verification-native rebuild, OCI publication or
+broker delivery is claimed by HU07.
