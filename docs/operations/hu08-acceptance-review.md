@@ -9,7 +9,7 @@ contextos y observabilidad viven en Infrastructure. Domain conserva independenci
 de frameworks. No se incorporan consumidores, reprocesamiento administrativo,
 garantías de orden, nuevos payloads ni aprovisionamiento de infraestructura compartida.
 
-La revisión SonarQube en Antigravity del 2026-10-23 está **completa**: los 47 archivos Java modificados o añadidos tienen cero incidencias, cero diagnósticos Java y cero hotspots, con hash y cierre de pestaña acreditados por archivo. El alcance total incluye 69 archivos. Véase el [manifiesto de calidad](../../openspec/changes/add-transactional-outbox-publication/source-quality-manifest.md).
+La revisión SonarQube en Antigravity del 2026-10-23 está **completa**: los 47 archivos Java modificados o añadidos tienen cero incidencias, cero diagnósticos Java y cero hotspots, con hash y cierre de pestaña acreditados por archivo. El alcance total incluye 69 archivos. Véase el [manifiesto de calidad](../../openspec/changes/archive/2026-10-23-add-transactional-outbox-publication/source-quality-manifest.md).
 
 ## Entorno y dependencias
 
@@ -154,7 +154,7 @@ contra el JAR y el ELF reales.
 | PackagedOutboxIT contra el nuevo ELF | 10/10; cero fallos u omisiones; 1m 23s | `build/hu08-evidence/w1-native/results/quarkusIntTest/` |
 | Imagen Dockerfile.native-micro y PostgreSQL 18 aislado | Tres gauges presentes y salud UP en todos los modos; NaN/0 sin entrega; fila completa conservada al detener entrega | `build/hu08-evidence/w1/image/container-verification.json` |
 | SonarQube en Antigravity | 47 Java reanalizados; cero incidencias, hotspots y diagnósticos Java; hashes y pestañas cerradas por archivo | `build/hu08-evidence/w1/sonar-review.json` |
-| OpenSpec | 43/43 tareas, 24 requisitos y 50 escenarios; 0 CRITICAL, 0 WARNING y 0 SUGGESTION; validación estricta correcta | `openspec/changes/add-transactional-outbox-publication/verification-report.md` |
+| OpenSpec | 43/43 tareas, 24 requisitos y 50 escenarios; 0 CRITICAL, 0 WARNING y 0 SUGGESTION; validación estricta correcta | `openspec/changes/archive/2026-10-23-add-transactional-outbox-publication/verification-report.md` |
 
 Las ejecuciones usaron el init script documentado con `-Phu08EvidenceRun=w1-final-jvm`,
 `w1-jvm-process` y `w1-native`, en serie. El ELF mide 119,065,656 bytes;
