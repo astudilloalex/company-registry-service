@@ -1,0 +1,6 @@
+*.env
+*.properties
+!*.example
+*.dump
+*.sql.gz
+*.log

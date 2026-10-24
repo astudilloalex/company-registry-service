@@ -1,5 +1,16 @@
 # company-registry-service
 
+## Private VPS deployment (T01)
+
+The [deployment guide](deploy/README.md) adapts Party Registry's native
+GHCR/SSH/rootless Podman Quadlet workflow. Company uses port **8083 both inside
+the container and on localhost**, with only `127.0.0.1:8083:8083` published.
+It always joins `internal-services`, `company-db`, and `messaging` and initially
+runs with `COMPANY_OUTBOX_MODE=disabled`, without requiring RabbitMQ credentials.
+Production configuration, historical idempotency keys and measured resource
+limits are external. The guide covers provisioning, validation, publication,
+rollback and consistent database/keyring backup and restoration.
+
 ## Company lifecycle (HU03)
 
 POST `/v1/companies/{companyId}/{activate,deactivate,archive}` takes business
@@ -156,7 +167,7 @@ You can run your application in dev mode that enables live coding using:
 ./gradlew quarkusDev
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8083/q/dev/>.
 
 ## JVM packaging for development
 
@@ -189,7 +200,7 @@ export DB_JDBC_URL=jdbc:postgresql://localhost:15433/company_registry_service
 export FLYWAY_DB_USERNAME=company_registry_migration
 export FLYWAY_DB_PASSWORD=company_registry_local
 export COMPANY_OUTBOX_MODE=disabled
-./build/company-registry-service-1.0.0-SNAPSHOT-runner -Dquarkus.http.port=8080
+./build/company-registry-service-1.0.0-SNAPSHOT-runner -Dquarkus.http.port=8083
 ```
 
 The application exposes `/q/health/ready` and `/q/openapi` without business headers.
