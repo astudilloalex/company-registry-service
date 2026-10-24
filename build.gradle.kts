@@ -41,6 +41,9 @@ dependencies {
     implementation("io.quarkus:quarkus-smallrye-context-propagation")
     implementation("io.quarkus:quarkus-smallrye-health")
     implementation("io.quarkus:quarkus-messaging")
+    implementation("io.quarkus:quarkus-messaging-rabbitmq")
+    implementation("io.quarkus:quarkus-scheduler")
+    implementation("io.quarkus:quarkus-micrometer-registry-prometheus")
     // Blocking access is reserved exclusively for Flyway startup migrations.
     implementation("io.quarkus:quarkus-flyway")
     implementation("io.quarkus:quarkus-jdbc-postgresql")

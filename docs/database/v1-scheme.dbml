@@ -193,6 +193,7 @@ Table company_outbox_events {
     id [pk, name: 'pk_company_outbox_events']
     (tenant_id, aggregate_type, aggregate_id, aggregate_version, event_type) [unique, name: 'uq_company_outbox_event_identity']
     (status, next_attempt_at, created_at, id) [name: 'ix_company_outbox_delivery']
+    (`coalesce(next_attempt_at, created_at)`, created_at, id) [name: 'ix_company_outbox_due_priority', note: 'V9 partial index WHERE status=PENDING']
     correlation_id [name: 'ix_company_outbox_correlation']
   }
   Note: 'Allowed COMPANY events: company.{created,updated,activated,deactivated}.v1; COMPANY_SITE: company.site.{created,updated,closed}.v1. Creation version=0, others>0; schema>0; JSON object; nonblank correlation/optional causation; attempts/version>=0; published_at iff PUBLISHED; FAILED requires nonblank error code; coherent audit. No publisher implemented by V1.'

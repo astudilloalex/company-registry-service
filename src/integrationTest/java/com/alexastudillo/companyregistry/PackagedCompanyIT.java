@@ -22,7 +22,7 @@ import org.junit.jupiter.api.io.TempDir;
  * executables.
  */
 @QuarkusIntegrationTest
-@QuarkusTestResource(ProcessEnvironmentResource.class)
+@QuarkusTestResource(value = ProcessEnvironmentResource.class, restrictToAnnotatedClass = true)
 class PackagedCompanyIT {
     private final ObjectMapper json = new ObjectMapper();
 

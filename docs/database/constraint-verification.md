@@ -286,6 +286,7 @@ PostgreSQL 18 with the same Podman environment.
 | `ck_company_outbox_updated_by` | Nonblank actor | Blank |
 | `ck_company_outbox_audit_dates` | Equal/later update | Earlier update |
 | `ix_company_outbox_delivery` | Keys `(status,next_attempt_at,created_at,id)` | Missing/reordered keys detected |
+| `ix_company_outbox_due_priority` | V9 partial PENDING index `(coalesce(next_attempt_at,created_at),created_at,id)` supports due order | PostgreSQL EXPLAIN and upgrade/history tests detect omission |
 | `ix_company_outbox_correlation` | Key correlation_id | Missing/wrong key detected |
 
 ## Catalog and mutation assertions

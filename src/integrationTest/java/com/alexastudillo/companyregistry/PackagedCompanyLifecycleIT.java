@@ -19,7 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Actual productive JVM/native process, external provider/SQL inspection and a preserved database across restarts. */
 @QuarkusIntegrationTest
-@QuarkusTestResource(ProcessEnvironmentResource.class)
+@QuarkusTestResource(value = ProcessEnvironmentResource.class, restrictToAnnotatedClass = true)
 class PackagedCompanyLifecycleIT {
     @io.quarkus.test.common.http.TestHTTPResource URI runningBase;
     private final ObjectMapper json = new ObjectMapper();

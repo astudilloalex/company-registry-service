@@ -21,7 +21,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /** Same real HTTP/database assertions execute against the packaged JVM and native binary. */
 @QuarkusIntegrationTest
-@QuarkusTestResource(ProcessEnvironmentResource.class)
+@QuarkusTestResource(value = ProcessEnvironmentResource.class, restrictToAnnotatedClass = true)
 class PackagedContactIT {
     @io.quarkus.test.common.http.TestHTTPResource URI runningBase;
     private final ObjectMapper json = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);

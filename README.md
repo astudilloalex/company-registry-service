@@ -99,12 +99,13 @@ User-Id/Process-Id: Tenant-Id is never converted to company-id. Provider absence
 inactivity/type mismatch, timeout, unavailability and invalid contracts remain
 distinct. See [contract provenance](docs/contracts/external-references.md).
 
-## Outbox foundation
+## Transactional outbox
 
 `COMPANY_OUTBOX_MODE` accepts `disabled` (default; no event storage), `stored-only`
-and `published` (both select atomic storage). **T00 has no publisher in any mode**:
-HU08 adds scheduling, claims/leases, retry/backoff, acknowledgements and sends.
-There is no RabbitMQ connector/channel/emitter or required broker credential.
+and `published` (both select atomic storage). Only `published` reserves and sends
+committed events asynchronously. Change configuration and restart the same
+JVM/native artifact to switch modes. `disabled` and `stored-only` require no
+broker credentials and do not connect to RabbitMQ.
 
 | Property suffix under `company-registry.outbox.publisher` | Variable | Default |
 | --- | --- | --- |
@@ -116,12 +117,23 @@ There is no RabbitMQ connector/channel/emitter or required broker credential.
 | `maximum-backoff` | `COMPANY_OUTBOX_MAXIMUM_BACKOFF` | `5m` |
 | `maximum-attempts` | `COMPANY_OUTBOX_MAXIMUM_ATTEMPTS` | `10` |
 | `exchange` | `COMPANY_OUTBOX_EXCHANGE` | `company.events` |
-| `routing-key` | `COMPANY_OUTBOX_ROUTING_KEY` | `company.events` |
+| `routing-key` | `COMPANY_OUTBOX_ROUTING_KEY` | `%s` |
 
-Durations/counts must be positive, maximum backoff must not be below initial
-backoff, and destinations must not be blank. Settings are validated at startup
-even though T00 performs no publication. Local, test and production deployments
-can override the listed variables without provisioning a broker.
+Durations must be positive and representable: polling/lease up to 1h, timeout
+up to 5m, backoffs up to 24h. Batch is 1–500; attempts 1–100. Lease must exceed
+timeout; maximum backoff must be at least initial backoff. Validation runs in
+all modes. Destinations cannot contain controls and must fit 255 UTF-8 bytes.
+Routing requires exactly one literal `%s`, replaced by eventType;
+`integration.%s` is valid. Migrate the former fixed override `company.events`
+to `%s`; fixed keys and other formats now fail startup.
+
+Published requires external `RABBITMQ_HOST`, `RABBITMQ_USERNAME` and
+`RABBITMQ_PASSWORD`; `RABBITMQ_PORT` defaults to 5672 (1–65535),
+`RABBITMQ_VIRTUAL_HOST` to existing `platform`. Their properties are under
+`company-registry.outbox.broker` (`host/port/username/password/virtual-host`).
+Prepare the topic durable exchange and consumer queues/bindings before enabling
+delivery. See [delivery operations](docs/contracts/outbox-publication.md) for
+permissions, confirmation semantics, retry/recovery, metrics and rollback.
 
 ## Tests
 
