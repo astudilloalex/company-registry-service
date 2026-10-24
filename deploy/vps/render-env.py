@@ -190,6 +190,33 @@ def write_private(path: Path, content: str) -> None:
         output.write(content)
 
 
+def resolve_variable(name: str, default: str) -> str:
+    """Resolve an environment variable value, falling back to a clean default."""
+    # Optional broker placeholders represent absent credentials, not secrets.
+    if name in OPTIONAL_VALUES and "REPLACE_WITH_" in default:
+        default = ""
+    value = os.environ.get(name)
+    if value is None or (not value and name not in OPTIONAL_VALUES):
+        return default
+    return value
+
+
+def render_template_line(line: str) -> str:
+    """Substitute environment values or clean defaults for a template line."""
+    if not line.strip() or line.lstrip().startswith("#"):
+        return line
+    name, separator, default = line.partition("=")
+    if not separator:
+        raise ValueError("Invalid environment template")
+    return f"{name}={resolve_variable(name, default)}"
+
+
+def render_template(template: Path) -> str:
+    """Render environment content by substituting environment values into template."""
+    lines = [render_template_line(line) for line in template.read_text(encoding="utf-8").splitlines()]
+    return "\n".join(lines) + "\n"
+
+
 def render(template: Path, output: Path, keyring: Path) -> None:
     """Render environment and a separate keyring from protected workflow inputs."""
     for name in SECRET_NAMES:
@@ -199,22 +226,7 @@ def render(template: Path, output: Path, keyring: Path) -> None:
         keys = decode_keys(json.loads(os.environ["COMPANY_IDEMPOTENCY_KEYS_JSON"], object_pairs_hook=unique_object))
     except json.JSONDecodeError as error:
         raise ValueError("Invalid idempotency keyring JSON") from error
-    lines = []
-    for line in template.read_text(encoding="utf-8").splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            lines.append(line)
-            continue
-        name, separator, default = line.partition("=")
-        if not separator:
-            raise ValueError("Invalid environment template")
-        # Optional broker placeholders represent absent credentials, not secrets.
-        if name in OPTIONAL_VALUES and "REPLACE_WITH_" in default:
-            default = ""
-        value = os.environ.get(name)
-        if value is None or (not value and name not in OPTIONAL_VALUES):
-            value = default
-        lines.append(f"{name}={value}")
-    content = "\n".join(lines) + "\n"
+    content = render_template(template)
     validate_configuration(parse_environment(content), keys)
     properties = "".join(f"{KEY_PREFIX}{name}={base64.b64encode(secret).decode()}\n" for name, secret in sorted(keys.items()))
     write_private(keyring, properties)

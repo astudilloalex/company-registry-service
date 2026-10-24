@@ -104,6 +104,9 @@ whitespace, deployment tests/shell syntax, architecture and unit tests, real
 PostgreSQL/RabbitMQ integration and contracts, JVM process tests, native build
 and native process tests. A failed gate prevents deployment.
 
+The whitespace check allows blank lines at EOF. Trailing spaces, spaces before
+indentation tabs, and merge conflict markers still fail the check.
+
 The workflow renders a private env file and separate properties keyring. It
 copies them and the reviewed deployment scripts over verified SSH. The script
 serializes deployments, validates files without shell-sourcing secrets, checks
