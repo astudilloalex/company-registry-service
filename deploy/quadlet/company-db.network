@@ -1,0 +1,15 @@
+[Unit]
+Description=Private Company Registry database network
+
+[Network]
+# Other options
+DisableDNS=false
+Driver=bridge
+Gateway=10.89.61.1
+Internal=true
+NetworkName=company-db
+Subnet=10.89.61.0/24
+
+[Install]
+WantedBy=default.target
+

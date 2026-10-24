@@ -7,9 +7,11 @@ GHCR/SSH/rootless Podman Quadlet workflow. Company uses port **8083 both inside
 the container and on localhost**, with only `127.0.0.1:8083:8083` published.
 It always joins `internal-services`, `company-db`, and `messaging` and initially
 runs with `COMPANY_OUTBOX_MODE=disabled`, without requiring RabbitMQ credentials.
-Production configuration, historical idempotency keys and measured resource
-limits are external. The guide covers provisioning, validation, publication,
-rollback and consistent database/keyring backup and restoration.
+Resource limits are versioned in the environment template: 256M memory, 50% of
+one CPU and 128 tasks. Credentials and historical idempotency keys remain external.
+Business smoke tests are optional and do not block deployment. The guide covers
+provisioning, validation, publication, rollback and consistent database/keyring
+backup and restoration.
 
 ## Company lifecycle (HU03)
 

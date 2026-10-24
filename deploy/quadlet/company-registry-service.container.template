@@ -1,0 +1,49 @@
+[Unit]
+Description=Company Registry Service
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Container]
+Image=@@IMAGE@@
+ContainerName=company-registry-service
+EnvironmentFile=@@ENVIRONMENT_FILE@@
+Network=internal-services.network
+Network=company-db.network
+Network=messaging.network
+NetworkAlias=company-registry-service
+PublishPort=127.0.0.1:8083:8083/tcp
+Pull=never
+User=1001:1001
+# Map the deployment user's private keyring to the non-root application user.
+UserNS=keep-id:uid=1001,gid=1001
+Volume=@@KEYRING_FILE@@:/run/secrets/company-keys.properties:ro
+NoNewPrivileges=true
+DropCapability=all
+ReadOnly=true
+ReadOnlyTmpfs=true
+PidsLimit=@@PIDS_LIMIT@@
+LogDriver=journald
+
+# Startup and deployment are gated on database-dependent readiness, as in Party.
+Notify=healthy
+HealthCmd=/usr/bin/curl --fail --silent --show-error --max-time 3 --output /dev/null http://127.0.0.1:8083/q/health/ready
+HealthInterval=30s
+HealthTimeout=5s
+HealthStartPeriod=60s
+HealthRetries=3
+HealthOnFailure=kill
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=300
+TimeoutStopSec=30
+MemoryAccounting=true
+MemoryMax=@@MEMORY_MAX@@
+CPUQuota=@@CPU_QUOTA@@
+TasksMax=@@PIDS_LIMIT@@
+
+[Install]
+WantedBy=default.target

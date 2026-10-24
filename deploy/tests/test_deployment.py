@@ -20,14 +20,11 @@ IMAGE = "ghcr.io/astudilloalex/company-registry-service:sha-" + "a" * 40
 
 
 def production_secrets() -> dict[str, str]:
-    """Use synthetic credentials and resource limits only, never the VPS secrets."""
+    """Use only synthetic required secrets; other inputs come from the env template."""
     return {
         "DB_PASSWORD": "database-test-password",
         "FLYWAY_DB_PASSWORD": "migration-test-password",
         "COMPANY_IDEMPOTENCY_KEYS_JSON": json.dumps({"K1": base64.b64encode(bytes(range(32))).decode()}),
-        "COMPANY_MEMORY_MAX": "256M",
-        "COMPANY_CPU_QUOTA": "100%",
-        "COMPANY_PIDS_LIMIT": "128",
     }
 
 
@@ -61,6 +58,9 @@ class EnvironmentRenderingTest(unittest.TestCase):
         self.assertIn(f"DB_PASSWORD={values['DB_PASSWORD']}\n", content)
         self.assertIn("DB_USERNAME=custom_runtime\n", content)
         self.assertIn("COMPANY_OUTBOX_MODE=disabled\n", content)
+        self.assertIn("COMPANY_MEMORY_MAX=256M\n", content)
+        self.assertIn("COMPANY_CPU_QUOTA=50%\n", content)
+        self.assertIn("COMPANY_PIDS_LIMIT=128\n", content)
         self.assertIn("RABBITMQ_PASSWORD=\n", content)
         self.assertNotIn("REPLACE_WITH_", content)
         self.assertNotIn("COMPANY_IDEMPOTENCY_KEYS_JSON=", content)
@@ -69,7 +69,7 @@ class EnvironmentRenderingTest(unittest.TestCase):
         self.assertNotIn(values["DB_PASSWORD"], result.stdout + result.stderr)
 
     def test_each_missing_required_input_fails_before_creating_files(self) -> None:
-        for name in production_secrets():
+        for name in ("DB_PASSWORD", "FLYWAY_DB_PASSWORD", "COMPANY_IDEMPOTENCY_KEYS_JSON"):
             with self.subTest(variable=name):
                 values = production_secrets()
                 del values[name]
@@ -191,9 +191,25 @@ elif name == "mv":
         status = 1
     else:
         status = subprocess.run(["/bin/mv", *arguments], check=False).returncode
+elif name == "timeout":
+    status = 124 if mode == "smoke-timeout" else subprocess.run(arguments[2:], check=False).returncode
 
 state_file.write_text(json.dumps(state))
 sys.exit(status)
+'''
+
+
+MOCK_VERIFIER = r'''import json
+import os
+from pathlib import Path
+import sys
+
+arguments = sys.argv[1:]
+with Path(os.environ["MOCK_VERIFICATIONS"]).open("a") as output:
+    output.write(json.dumps(arguments) + "\n")
+mode = os.environ.get("MOCK_MODE")
+sys.exit(int(mode == "verification-failure" or
+             (mode == "smoke-failure" and "--smoke-fixtures" in arguments)))
 '''
 
 
@@ -213,7 +229,7 @@ class DeploymentRecoveryTest(unittest.TestCase):
         self.keyring = self.directory / "production/secrets/company-registry-service.properties"
         (self.stage / "render-env.py").write_bytes(RENDERER.read_bytes())
         # Shell transaction tests isolate external inspection; verify.py has separate tests.
-        (self.stage / "verify.py").write_text("import os,sys; sys.exit(int(os.environ.get('MOCK_MODE') == 'verification-failure'))\n")
+        (self.stage / "verify.py").write_text(MOCK_VERIFIER)
         self.config_home = self.directory / "config"
         self.quadlet = self.config_home / "containers/systemd/company-registry-service.container"
         (self.stage / "company-registry-service.container.template").write_bytes(
@@ -221,13 +237,14 @@ class DeploymentRecoveryTest(unittest.TestCase):
         )
         self.mock_bin = self.directory / "bin"
         self.mock_bin.mkdir()
-        for name in ("podman", "systemctl", "journalctl", "curl", "sleep", "mv", "uname"):
+        for name in ("podman", "systemctl", "journalctl", "curl", "sleep", "mv", "uname", "timeout"):
             command = self.mock_bin / name
             command.write_text(MOCK_COMMAND)
             command.chmod(0o755)
         self.backups = self.directory / "temporary"
         self.backups.mkdir()
         self.state_file = self.directory / "state.json"
+        self.verifications = self.directory / "verifications.jsonl"
 
     def provision_previous_deployment(self) -> None:
         """Preserve distinct old credentials and an old image for recovery assertions."""
@@ -259,6 +276,7 @@ class DeploymentRecoveryTest(unittest.TestCase):
                 "DEPLOYMENT_KEYRING_FILE": str(self.keyring),
                 "TMPDIR": str(self.backups),
                 "MOCK_STATE": str(self.state_file),
+                "MOCK_VERIFICATIONS": str(self.verifications),
                 "MOCK_MODE": mode,
             },
             text=True,
@@ -283,6 +301,12 @@ class DeploymentRecoveryTest(unittest.TestCase):
         self.assertEqual([line for line in content.splitlines() if line.startswith("Network=")],
                          ["Network=internal-services.network", "Network=company-db.network", "Network=messaging.network"])
         self.assertIn("MemoryMax=256M\n", content)
+        self.assertIn("CPUQuota=50%\n", content)
+        self.assertIn("PidsLimit=128\n", content)
+        self.assertIn("TasksMax=128\n", content)
+        self.assertIn("Business smoke tests skipped", result.stdout)
+        self.assertEqual([json.loads(line) for line in self.verifications.read_text().splitlines()],
+                         [["--mode", "disabled", "--finalize-database"]])
         self.assertEqual(self.keyring.read_bytes(), keyring_for(self.incoming).read_bytes())
         for value in (production_secrets()["DB_PASSWORD"], production_secrets()["COMPANY_IDEMPOTENCY_KEYS_JSON"]):
             self.assertNotIn(value, result.stdout + result.stderr)
@@ -296,6 +320,48 @@ class DeploymentRecoveryTest(unittest.TestCase):
         self.assertEqual(self.environment.read_bytes(), self.incoming.read_bytes())
         self.assertEqual(len(state["restarts"]), 1)
         self.assertFalse(list(self.backups.iterdir()))
+
+    def test_optional_smoke_failure_or_timeout_keeps_the_successful_deployment(self) -> None:
+        self.provision_previous_deployment()
+        fixtures = self.stage / "smoke-fixtures.json"
+        fixtures.write_text(json.dumps({"tenantId": "00000000-0000-0000-0000-000000000001",
+                                        "partyId": "00000000-0000-0000-0000-000000000002"}))
+        for mode in ("smoke-failure", "smoke-timeout"):
+            with self.subTest(mode=mode):
+                self.environment.write_bytes(self.previous_environment)
+                self.quadlet.write_bytes(self.previous_quadlet)
+                self.state_file.unlink(missing_ok=True)
+                self.verifications.unlink(missing_ok=True)
+                result = self.deploy(mode)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Deployment completed", result.stdout)
+                self.assertIn("::warning::Optional business smoke tests failed or timed out", result.stderr)
+                self.assertNotIn("Rolling back", result.stderr)
+                self.assertEqual(self.environment.read_bytes(), self.incoming.read_bytes())
+                self.assertIn(f"Image={IMAGE}\n", self.quadlet.read_text())
+                state = json.loads(self.state_file.read_text())
+                self.assertEqual(len(state["restarts"]), 1)
+                self.assertTrue(any(command[:3] == ["timeout", "--kill-after=5s", "90s"]
+                                    for command in state["commands"]))
+                calls = [json.loads(line) for line in self.verifications.read_text().splitlines()]
+                self.assertEqual(calls[0], ["--mode", "disabled", "--finalize-database"])
+                if mode == "smoke-failure":
+                    self.assertEqual(calls[1], ["--mode", "disabled", "--smoke-fixtures", str(fixtures)])
+                else:
+                    self.assertEqual(len(calls), 1)
+                self.assertFalse(list(self.backups.iterdir()))
+
+    def test_required_verification_still_rolls_back_with_smoke_fixtures(self) -> None:
+        self.provision_previous_deployment()
+        (self.stage / "smoke-fixtures.json").write_text("{}")
+        result = self.deploy("verification-failure")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.environment.read_bytes(), self.previous_environment)
+        self.assertEqual(self.quadlet.read_bytes(), self.previous_quadlet)
+        self.assertEqual([json.loads(line) for line in self.verifications.read_text().splitlines()],
+                         [["--mode", "disabled", "--finalize-database"]])
+        state = json.loads(self.state_file.read_text())
+        self.assertFalse(any(command[0] == "timeout" for command in state["commands"]))
 
     def test_failures_restore_both_files_and_restart_with_previous_credentials(self) -> None:
         self.provision_previous_deployment()

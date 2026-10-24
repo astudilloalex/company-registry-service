@@ -141,9 +141,9 @@ def validate_limits(values: dict[str, str]) -> None:
         if not values[name].isascii() or not values[name].isdecimal() or not minimum <= int(values[name]) <= maximum:
             raise ValueError(f"Invalid bounded integer: {name}")
     if not re.fullmatch(r"[1-9]\d*[MG]", values["COMPANY_MEMORY_MAX"]):
-        raise ValueError("COMPANY_MEMORY_MAX must be a positive measured M/G limit")
+        raise ValueError("COMPANY_MEMORY_MAX must be a positive M/G limit")
     if not re.fullmatch(r"[1-9]\d{0,3}%", values["COMPANY_CPU_QUOTA"]):
-        raise ValueError("COMPANY_CPU_QUOTA must be a positive measured percentage")
+        raise ValueError("COMPANY_CPU_QUOTA must be a positive percentage")
 
 
 def validate_configuration(values: dict[str, str], keys: dict[str, bytes]) -> None:
@@ -207,7 +207,13 @@ def render(template: Path, output: Path, keyring: Path) -> None:
         name, separator, default = line.partition("=")
         if not separator:
             raise ValueError("Invalid environment template")
-        lines.append(f"{name}={os.environ.get(name) or default}")
+        # Optional broker placeholders represent absent credentials, not secrets.
+        if name in OPTIONAL_VALUES and "REPLACE_WITH_" in default:
+            default = ""
+        value = os.environ.get(name)
+        if value is None or (not value and name not in OPTIONAL_VALUES):
+            value = default
+        lines.append(f"{name}={value}")
     content = "\n".join(lines) + "\n"
     validate_configuration(parse_environment(content), keys)
     properties = "".join(f"{KEY_PREFIX}{name}={base64.b64encode(secret).decode()}\n" for name, secret in sorted(keys.items()))
