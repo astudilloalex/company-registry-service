@@ -12,7 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /** External-process checks: no CDI injection or src/test fixture outputs are present in this suite. */
-@QuarkusIntegrationTest @QuarkusTestResource(ProcessEnvironmentResource.class)
+@QuarkusIntegrationTest @QuarkusTestResource(value = ProcessEnvironmentResource.class, restrictToAnnotatedClass = true)
 class PackagedFoundationIT {
     @Test void healthAndEmbeddedContractWorkWithoutBusinessContext() throws Exception {
         var health = given().get("/q/health/ready").then().statusCode(200).extract().asString();

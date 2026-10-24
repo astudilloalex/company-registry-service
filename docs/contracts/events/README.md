@@ -1,4 +1,21 @@
-# company.created.v1 handoff to HU08
+# Company Registry event contracts
+
+HU01–HU07 are the producers; HU08 delivers their committed original facts.
+The catalog remains exactly seven event types, all schema 1, with unchanged
+payloads and schemas. Archived Company uses updated; Address/Contact changes
+use Site updated. The default exchange is `company.events`; routing is eventType
+via `%s`, or the configured template such as `integration.%s`.
+
+Redelivery preserves eventId, tenant, correlation, explicit null causation,
+aggregateVersion, timestamps and snapshot. Delivery metadata never enters the
+eleven-field envelope. Consumers deduplicate by eventId and handle gaps or
+reordering by aggregateVersion: delivery may be out of order within one aggregate.
+PUBLISHED means broker confirmation, including a possible unroutable publication;
+prepare queues and bindings before enabling delivery. See
+[HU08 delivery contract](../outbox-publication.md).
+
+The producer notes below describe each producer's original acceptance behavior;
+current delivery semantics are controlled by HU08 and the selected runtime mode.
 
 ## HU03 lifecycle facts
 
@@ -15,7 +32,7 @@ HU08 delivers each original stored fact to exchange `company.events`, routing ke
 equal to eventType (`company.activated.v1`, `company.deactivated.v1`,
 `company.updated.v1`). Keep eventId on redelivery; do not rebuild from current state.
 There is no company.archived.v1. At-least-once delivery and no global ordering remain
-the delivery contract. Claims/leases/scheduler/confirms/retries remain HU08. HU03
+the delivery contract. HU08 owns claims/leases/scheduler/confirms/retries. HU03
 requires no broker in any mode, stores none in disabled and one applicable event in
 stored-only/published, atomically even without an idempotency key.
 
@@ -28,12 +45,10 @@ masked identifiers, description, logo URL and idempotency material are excluded.
 HU01 stores the seven-field payload and original envelope metadata in outbox,
 atomically with Company and completion. disabled omits it; stored-only and
 published both store PENDING, zero attempts and technical delivery version 0.
-Neither mode activates a broker connection or a publisher. Replays never store
+Only published activates delivery after the business commit. Replays never store
 another event. HU08 must serialize the stored original fact (including explicit
 null causation), preserve eventId/content through redelivery, and route to
-exchange `company.events` with routing key `company.created.v1`. The current
-foundation default `company.events` for the routing key must be aligned in HU08;
-it is not used to publish in HU01. Delivery will be at least once with no global
+exchange `company.events` with routing key `company.created.v1`. The routing template defaults to `%s`; migrate any former fixed override before activation. Delivery will be at least once with no global
 order or exactly-once guarantee. Incompatible changes require a new version.
 
 The Gradle resource task embeds both JSON files under
@@ -61,7 +76,7 @@ DRAFT/ACTIVE/INACTIVE and does not implement archival. HU08 will deliver to
 exchange `company.events`, routing key `company.updated.v1`, using the original
 stored snapshot and eventId even after later Company changes. Consumers deduplicate
 by eventId and reason about aggregateVersion; no global order or exactly-once
-promise is made. Claims, leases, confirms and delivery retries remain HU08 work.
+promise is made. HU08 owns claims, leases, confirms and delivery retries.
 Schema and example are packaged under `META-INF/contracts/events/` in JVM/native.
 # company.site.created.v1
 

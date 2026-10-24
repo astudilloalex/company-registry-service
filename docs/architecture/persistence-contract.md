@@ -364,3 +364,27 @@ numbering metadata and original keys without a TTL that permits reacceptance.
 Rollback preserves migration/history/revisions/outbox; restore compatible code
 or suspend HU07 routes. Never restore deleted rows or revert EMAIL policy by
 editing applied migrations. See the contact contract and tests for K1→K2 replay.
+
+## HU08 delivery transactions
+
+`ReactiveDeliveryStore` owns short reactive Panache transactions. Selection uses
+PostgreSQL clock time, `coalesce(next_attempt_at,created_at),created_at,id`, a
+bounded limit and `FOR UPDATE SKIP LOCKED`. Reservation increments attempts,
+audit and technical version before returning after commit. `next_attempt_at`
+is a lease while sending and a deadline while in backoff. No lock/session spans
+an AMQP wait; parallel deliveries use independent duplicated Vert.x contexts.
+
+Finalization matches eventId, tenantId, attempt, technical version, claimed time
+and expiry; updating increments version, invalidating duplicate results. A false
+return is a discarded result, never a confirmed transition. The immutable eleven
+fields and aggregateVersion are separate from audit/version/attempts of delivery.
+
+Expired PENDING rows at the configured maximum become FAILED without another
+reservation, preserving allowlisted known errors or `delivery-outcome-unknown`.
+Neither terminal state is automatically reopened. A failed/uncertain commit after
+broker acknowledgement leaves recovery to expiry rather than repeating writes.
+Runtime delivery uses Hibernate Reactive, never JDBC; JDBC remains permitted in
+test harnesses and the established migration-only startup boundary.
+
+See [delivery contract](../contracts/outbox-publication.md) for mode switches,
+bounded backoff, uncertainty, topology and operational recovery.

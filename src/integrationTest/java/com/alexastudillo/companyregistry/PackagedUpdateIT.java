@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Runs unchanged against the productive JVM artifact and native executable. */
-@QuarkusIntegrationTest @QuarkusTestResource(ProcessEnvironmentResource.class)
+@QuarkusIntegrationTest @QuarkusTestResource(value = ProcessEnvironmentResource.class, restrictToAnnotatedClass = true)
 class PackagedUpdateIT {
     private final ObjectMapper json=new ObjectMapper();
     Connection database() throws Exception {return DriverManager.getConnection(ProcessEnvironmentResource.settings.get("quarkus.datasource.jdbc.url"),"company_registry_migration","migration_test");}

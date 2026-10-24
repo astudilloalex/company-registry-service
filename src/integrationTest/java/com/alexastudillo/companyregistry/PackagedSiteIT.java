@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Real productive JVM/native process, preserved database, no in-process service mocks. */
-@QuarkusIntegrationTest @QuarkusTestResource(ProcessEnvironmentResource.class)
+@QuarkusIntegrationTest @QuarkusTestResource(value = ProcessEnvironmentResource.class, restrictToAnnotatedClass = true)
 class PackagedSiteIT {
     private final ObjectMapper json=new ObjectMapper();
     @io.quarkus.test.common.http.TestHTTPResource java.net.URI runningBase;

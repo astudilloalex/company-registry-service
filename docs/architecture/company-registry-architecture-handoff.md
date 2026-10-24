@@ -83,7 +83,7 @@ Service technology: `Quarkus | Java 25 | Mutiny | Hibernate Reactive`, native de
 | Company service | `postgreSQL.companyDb` | Persist separate Company/Site aggregates, children, idempotency and optional outbox — Hibernate Reactive / Mutiny / PostgreSQL | T00 foundation; runtime access reactive |
 | Company service | Party service | Resolve tenant-scoped legal Party identity/type/status — REST Client / Mutiny / JSON | T00 client foundation, HU01/HU03 workflows |
 | Company service | Geographic service | Resolve country alpha-2 and confirmed administrative divisions — REST Client / Mutiny / JSON | Both adapters verified after provider contract confirmation |
-| Company service | RabbitMQ | Optionally publish configured Company outbox events — Reactive Messaging / AMQP | **Future HU08**, no publisher/channels/scheduler in T00; default disabled |
+| Company service | RabbitMQ | Publish committed original Company/Site facts — Reactive Messaging / AMQP confirms | HU08; delivery only in published, lazy channel, leases/retry, default disabled |
 
 All FQNs above have the `alexAstudilloPlatform` prefix. External edges originate
 at `.infrastructure` and roll up to the Company service in C2 views; they are not

@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 /** Real verification-process contracts; no injected beans or in-process mocks. */
-@QuarkusIntegrationTest @QuarkusTestResource(ProcessEnvironmentResource.class)
+@QuarkusIntegrationTest @QuarkusTestResource(value = ProcessEnvironmentResource.class, restrictToAnnotatedClass = true)
 @EnabledIfSystemProperty(named = "verification.artifact", matches = "true")
 class PackagedVerificationIT {
     private RequestSpecification request() {

@@ -18,6 +18,13 @@ public class ProcessEnvironmentResource extends PostgresResource {
         values.put("quarkus.rest-client.party-registry.read-timeout", "300");
         values.put("quarkus.rest-client.geographic-reference.read-timeout", "300");
         values.put("company-registry.outbox.mode", "stored-only");
+        // HU01–HU07 verify capture/history in every policy. HU08 has an independent
+        // delivery fixture; never let a regression publisher drain these accepted facts.
+        values.put("quarkus.scheduler.enabled", "false");
+        values.put("company-registry.outbox.broker.host", "127.0.0.1");
+        values.put("company-registry.outbox.broker.port", "9");
+        values.put("company-registry.outbox.broker.username", "capture-regression");
+        values.put("company-registry.outbox.broker.password", "test-only-unused");
         values.put("company-registry.registration.wait-budget", "5s");
         values.put("company-registry.idempotency.active-key-id", "process-k1");
         values.put("company-registry.idempotency.keys.process-k1", java.util.Base64.getEncoder().encodeToString(new byte[32]));
