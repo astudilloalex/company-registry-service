@@ -102,6 +102,7 @@ jobs:
             build/reports/tests/
             build/test-results/
             build/quarkus.log
+            build/hu08-evidence/
           if-no-files-found: ignore
           retention-days: 7
 

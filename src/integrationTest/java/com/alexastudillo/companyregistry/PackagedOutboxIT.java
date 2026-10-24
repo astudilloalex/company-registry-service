@@ -19,6 +19,9 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.ExecInContainerPattern;
+import org.testcontainers.dockerclient.DockerClientProviderStrategy;
 
 /** Runs unchanged against the production JVM artifact and real ELF executable, outside the source tree. */
 @QuarkusIntegrationTest
@@ -337,11 +340,17 @@ class PackagedOutboxIT {
     private static void brokerCommand(String operation) throws Exception {
         var log = Path.of("build", "hu08-evidence", "broker-" + operation + ".log");
         java.nio.file.Files.createDirectories(log.getParent());
-        // A fresh Podman CLI connection avoids stale Docker-compatible HTTP pool connections.
-        var command = new ProcessBuilder("podman", "exec", DeliveryEnvironmentResource.rabbit.getContainerId(),
-                "rabbitmqctl", operation).redirectErrorStream(true).redirectOutput(log.toFile()).start();
-        if (!command.waitFor(30, TimeUnit.SECONDS)) { command.destroyForcibly(); throw new IllegalStateException("Broker fixture operation timed out"); }
-        assertEquals(0, command.exitValue(), "Isolated broker operation; inspect " + log);
+        // Share Testcontainers' runtime without reusing stale Podman HTTP connections.
+        var result = assertTimeoutPreemptively(Duration.ofSeconds(30), () -> {
+            try (var client = DockerClientProviderStrategy.getClientForConfig(
+                    DockerClientFactory.instance().getTransportConfig())) {
+                return ExecInContainerPattern.execInContainer(client,
+                        DeliveryEnvironmentResource.rabbit.getContainerInfo(), "rabbitmqctl", operation);
+            }
+        });
+        java.nio.file.Files.writeString(log, result.getStdout() + result.getStderr());
+        assertEquals(0, result.getExitCode(), () -> "Isolated broker operation; inspect " + log
+                + System.lineSeparator() + result.getStdout() + result.getStderr());
     }
 
     @Test void rejectedRequiredOutboxWriteRollsBackHttpBusinessAndCannotLeakToBroker(@TempDir Path work) throws Exception {
