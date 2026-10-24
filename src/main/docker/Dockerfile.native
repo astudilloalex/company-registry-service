@@ -13,7 +13,7 @@
 # Then run the container using:
 #
 # Supply the separate runtime/Flyway database variables documented in README.
-# podman run --rm -p 8080:8080 --env-file <external-config> company-registry-service:native
+# podman run --rm -p 127.0.0.1:8083:8083 --env-file <external-config> company-registry-service:native
 #
 # Runtime: UBI 9 Minimal, direct native executable, non-privileged user 1001.
 ###
@@ -24,7 +24,7 @@ RUN chown 1001 /work \
     && chown 1001:root /work
 COPY --chown=1001:root --chmod=0755 build/*-runner /work/application
 
-EXPOSE 8080
+EXPOSE 8083
 USER 1001
 
 ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]

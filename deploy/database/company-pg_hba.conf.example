@@ -1,0 +1,6 @@
+# Merge BEFORE existing broad allow rules in the PostgreSQL infrastructure config.
+# These rules constrain only Company roles; preserve all existing services' rules.
+host company_registry_service company_registry_runtime,company_registry_migration all scram-sha-256
+host all company_registry_runtime,company_registry_migration all reject
+local company_registry_service company_registry_runtime,company_registry_migration scram-sha-256
+local all company_registry_runtime,company_registry_migration reject

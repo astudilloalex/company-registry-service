@@ -1,0 +1,297 @@
+name: Deploy native image to VPS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: company-registry-service-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  GITHUB_ACTOR: ${{ github.actor }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+jobs:
+  build_publish:
+    name: Validate, test, and build the native image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.publish.outputs.reference }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Verify deployment rendering and recovery
+        shell: bash
+        run: |
+          python3 -m unittest discover -s deploy/tests -v
+          bash -n deploy/vps/deploy.sh
+          bash -n deploy/vps/backup.sh
+
+      - name: Check changed-file formatting
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -Eeuo pipefail
+          base="${BASE_SHA}"
+          if [[ -z "${base}" || "${base}" =~ ^0+$ ]]; then
+            base=HEAD^
+          else
+            git fetch --no-tags --depth=1 origin "${base}"
+          fi
+          git diff --check "${base}" HEAD
+
+      - name: Verify JVM tests, architecture, database, and published contracts
+        run: ./gradlew --no-daemon test build verifyProductionIsolation
+
+      - name: Verify the packaged JVM application
+        run: ./gradlew --no-daemon quarkusIntTest
+
+      - name: Build the Linux native executable
+        run: >-
+          ./gradlew --no-daemon quarkusBuild
+          -Dquarkus.native.enabled=true
+          -Dquarkus.package.jar.enabled=false
+          -Dquarkus.native.container-build=true
+          -Dquarkus.native.container-runtime=docker
+          -Dquarkus.native.march=compatibility
+          -Dquarkus.native.builder-image=quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25
+          -Dquarkus.native.native-image-xmx=5g
+          -Dquarkus.native.additional-build-args=--initialize-at-run-time=com.alexastudillo.companyregistry.infrastructure.persistence.UuidV7Generator,--parallelism=2
+
+      - name: Verify the native application against PostgreSQL and RabbitMQ
+        run: >-
+          ./gradlew --no-daemon quarkusIntTest -x quarkusBuild
+          -Dquarkus.native.enabled=true
+          -Dquarkus.package.jar.enabled=false
+
+      - name: Upload test failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/reports/tests/
+            build/test-results/
+            build/quarkus.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build and publish the container image
+        if: github.ref == 'refs/heads/main'
+        id: publish
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          image_repository="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          image_reference="${image_repository}:sha-${GITHUB_SHA}"
+          latest_reference="${image_repository}:latest"
+
+          printf '%s' "${GHCR_TOKEN}" |
+            docker login "${REGISTRY}" --username "${GITHUB_ACTOR}" --password-stdin
+
+          docker build \
+            --platform linux/amd64 \
+            --file src/main/docker/Dockerfile.native \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${image_reference}" \
+            .
+
+          docker push "${image_reference}"
+          docker tag "${image_reference}" "${latest_reference}"
+          docker push "${latest_reference}"
+
+          printf 'reference=%s\n' "${image_reference}" >> "${GITHUB_OUTPUT}"
+
+  deploy:
+    name: Deploy the image with rootless Podman Quadlet
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - build_publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out deployment files
+        uses: actions/checkout@v6
+
+      - name: Render the production environment
+        shell: bash
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          FLYWAY_DB_PASSWORD: ${{ secrets.FLYWAY_DB_PASSWORD }}
+          RABBITMQ_USERNAME: ${{ secrets.RABBITMQ_USERNAME }}
+          RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+          COMPANY_IDEMPOTENCY_KEYS_JSON: ${{ secrets.COMPANY_IDEMPOTENCY_KEYS_JSON }}
+          COMPANY_IDEMPOTENCY_ACTIVE_KEY_ID: ${{ vars.COMPANY_IDEMPOTENCY_ACTIVE_KEY_ID || 'K1' }}
+          PARTY_REGISTRY_BASE_URL: ${{ vars.PARTY_REGISTRY_BASE_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME || vars.DB_USERNAME }}
+          FLYWAY_DB_USERNAME: ${{ secrets.FLYWAY_DB_USERNAME || vars.FLYWAY_DB_USERNAME }}
+          POSTGRES_CONTAINER: ${{ vars.POSTGRES_CONTAINER }}
+          DB_REACTIVE_URL: ${{ secrets.DB_REACTIVE_URL || vars.DB_REACTIVE_URL }}
+          DB_JDBC_URL: ${{ secrets.DB_JDBC_URL || vars.DB_JDBC_URL }}
+          GEOGRAPHIC_REFERENCE_BASE_URL: ${{ secrets.GEOGRAPHIC_REFERENCE_BASE_URL || vars.GEOGRAPHIC_REFERENCE_BASE_URL }}
+          RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST || vars.RABBITMQ_HOST }}
+          RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT || vars.RABBITMQ_PORT }}
+          RABBITMQ_VIRTUAL_HOST: ${{ secrets.RABBITMQ_VIRTUAL_HOST || vars.RABBITMQ_VIRTUAL_HOST }}
+          COMPANY_OUTBOX_MODE: ${{ secrets.COMPANY_OUTBOX_MODE || vars.COMPANY_OUTBOX_MODE }}
+          COMPANY_OUTBOX_EXCHANGE: ${{ secrets.COMPANY_OUTBOX_EXCHANGE || vars.COMPANY_OUTBOX_EXCHANGE }}
+          COMPANY_OUTBOX_ROUTING_KEY: ${{ secrets.COMPANY_OUTBOX_ROUTING_KEY || vars.COMPANY_OUTBOX_ROUTING_KEY }}
+        run: |
+          set -Eeuo pipefail
+          python3 deploy/vps/render-env.py \
+            deploy/quadlet/company-registry-service.env.example \
+            "${RUNNER_TEMP}/company-registry-service.env" \
+            "${RUNNER_TEMP}/company-registry-service.keys.properties"
+
+      - name: Prepare optional business smoke tests
+        continue-on-error: true
+        shell: bash
+        env:
+          SMOKE_TENANT_ID: ${{ vars.SMOKE_TENANT_ID }}
+          SMOKE_PARTY_ID: ${{ vars.SMOKE_PARTY_ID }}
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from uuid import UUID
+          tenant = os.environ.get("SMOKE_TENANT_ID", "").strip()
+          party = os.environ.get("SMOKE_PARTY_ID", "").strip()
+          if not tenant or not party:
+              if tenant or party:
+                  print("::warning::Optional business smoke tests skipped: configure both SMOKE_TENANT_ID and SMOKE_PARTY_ID")
+              else:
+                  print("Business smoke tests skipped: no fixtures configured")
+              raise SystemExit(0)
+          try:
+              fixtures = {"tenantId": str(UUID(tenant)), "partyId": str(UUID(party))}
+          except ValueError:
+              print("::warning::Optional business smoke tests skipped: fixture IDs must be valid UUIDs")
+              raise SystemExit(0)
+          destination = Path(os.environ["RUNNER_TEMP"]) / "smoke-fixtures.json"
+          descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(descriptor, "w") as output:
+              json.dump(fixtures, output)
+          PY
+
+      - name: Install the environment and Quadlet on the VPS
+        shell: bash
+        env:
+          IMAGE_REFERENCE: ${{ needs.build_publish.outputs.image }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          VPS_SSH_PORT: "22"
+        run: |
+          set -Eeuo pipefail
+
+          : "${IMAGE_REFERENCE:?The native image reference is missing}"
+          : "${VPS_HOST:?Define the VPS_HOST production secret}"
+          : "${VPS_USER:?Define the VPS_USER production secret}"
+          : "${VPS_SSH_PRIVATE_KEY:?Define the VPS_SSH_PRIVATE_KEY production secret}"
+          : "${VPS_SSH_KNOWN_HOSTS:?Define the VPS_SSH_KNOWN_HOSTS production secret}"
+
+          ssh_key_file="${RUNNER_TEMP}/vps-deploy-key"
+          known_hosts_file="${RUNNER_TEMP}/vps-known-hosts"
+          remote="${VPS_USER}@${VPS_HOST}"
+          remote_stage=".local/share/company-registry-service/deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          (
+            umask 077
+            printf '%s\n' "${VPS_SSH_PRIVATE_KEY}" > "${ssh_key_file}"
+            printf '%s\n' "${VPS_SSH_KNOWN_HOSTS}" > "${known_hosts_file}"
+          )
+
+          ssh_options=(
+            -i "${ssh_key_file}"
+            -p "${VPS_SSH_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=${known_hosts_file}"
+          )
+          scp_options=(
+            -i "${ssh_key_file}"
+            -P "${VPS_SSH_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=${known_hosts_file}"
+          )
+
+          cleanup_remote_stage() {
+            ssh "${ssh_options[@]}" "${remote}" \
+              "rm -f '${remote_stage}/company-registry-service.env' '${remote_stage}/company-registry-service.container.template' '${remote_stage}/deploy.sh' '${remote_stage}/render-env.py' '${remote_stage}/verify.py' '${remote_stage}/company-registry-service.keys.properties' '${remote_stage}/smoke-fixtures.json'; rmdir '${remote_stage}'" || true
+          }
+          trap cleanup_remote_stage EXIT
+
+          ssh "${ssh_options[@]}" "${remote}" \
+            "install -d -m 700 '${remote_stage}'"
+
+          scp "${scp_options[@]}" \
+            deploy/quadlet/company-registry-service.container.template \
+            deploy/vps/deploy.sh \
+            deploy/vps/render-env.py \
+            deploy/vps/verify.py \
+            "${RUNNER_TEMP}/company-registry-service.env" \
+            "${RUNNER_TEMP}/company-registry-service.keys.properties" \
+            "${remote}:${remote_stage}/"
+
+          if [[ -f "${RUNNER_TEMP}/smoke-fixtures.json" ]]; then
+            if ! scp "${scp_options[@]}" \
+              "${RUNNER_TEMP}/smoke-fixtures.json" \
+              "${remote}:${remote_stage}/smoke-fixtures.json"; then
+              printf '::warning::Optional business smoke fixtures could not be copied; deployment continues.\n'
+            fi
+          fi
+
+          ssh "${ssh_options[@]}" "${remote}" \
+            "chmod 700 '${remote_stage}/deploy.sh' && chmod 600 '${remote_stage}/company-registry-service.env' '${remote_stage}/company-registry-service.keys.properties' && '${remote_stage}/deploy.sh' '${IMAGE_REFERENCE}' '${remote_stage}' '${remote_stage}/company-registry-service.env' '${remote_stage}/company-registry-service.keys.properties'"
+
+      - name: Remove temporary deployment credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f -- \
+            "${RUNNER_TEMP}/company-registry-service.env" \
+            "${RUNNER_TEMP}/company-registry-service.keys.properties" \
+            "${RUNNER_TEMP}/vps-deploy-key" \
+            "${RUNNER_TEMP}/smoke-fixtures.json" \
+            "${RUNNER_TEMP}/vps-known-hosts"
