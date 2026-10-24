@@ -86,7 +86,7 @@ class SiteAddressMetadataMigrationTest extends SqlIntegritySupport {
         assertEquals("6", scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema='site_address_upgrade' AND table_type='BASE TABLE'"));
         assertEquals("1", scalar("SELECT count(*) FROM pg_constraint WHERE conname='ck_company_idempotency_site_address_metadata' "
                 + "AND connamespace='site_address_upgrade'::regnamespace AND convalidated"));
-        assertEquals("8", flyway.info().current().getVersion().getVersion());
+        assertEquals("9", flyway.info().current().getVersion().getVersion());
         flyway.validate();
     }
 
